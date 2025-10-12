@@ -21,6 +21,20 @@ services:
       IHM_BACKEND_DB_BASE: ihm_backend
       IHM_BACKEND_REDIS_HOST: ihm_backend-redis
 
+  frontend:
+    build:
+      context: ./ihm_frontend
+      dockerfile: ./Dockerfile
+      target: production
+    image: ihm_frontend:${IHM_FRONTEND_VERSION:-latest}
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    environment:
+      - VITE_API_URL=http://api:8000
+
   taskiq-worker:
     <<: *main_app
     labels: []

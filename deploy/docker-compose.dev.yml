@@ -12,6 +12,21 @@ services:
       # Enables autoreload.
       IHM_BACKEND_RELOAD: "True"
 
+  frontend:
+    build:
+      context: ./ihm_frontend
+      dockerfile: ./Dockerfile
+      target: development
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot reload
+      - ./ihm_frontend:/app
+      # Preserve node_modules
+      - /app/node_modules
+    depends_on:
+      - api
+
   taskiq-worker:
     volumes:
       # Adds current directory as volume.
