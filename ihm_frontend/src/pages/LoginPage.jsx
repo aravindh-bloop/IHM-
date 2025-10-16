@@ -13,22 +13,14 @@ function LoginPage() {
     setError(''); // Clear any previous errors
 
     try {
-      // Call the login function from our ApiService, sending the email and password
-      const response = await ApiService.login({ email, password });
+      // FastAPI Users cookie auth returns 204 (No Content) on success
+      await ApiService.login({ username: email, password });
 
-      // The SRS document mentions JWT. The backend will likely send an "access_token"
-      if (response.access_token) {
-        // For now, just show a success message
-        alert('Login Successful! Token received.');
-        console.log('Received Token:', response.access_token);
-        
-        // In a real app, we would save this token and redirect the user
-        // localStorage.setItem('authToken', response.access_token);
-        // window.location.href = '/dashboard';
-      } else {
-        setError('Login did not return a token.');
-      }
-
+      // On success the server sets an HttpOnly cookie; use it for subsequent requests
+      alert('Login successful!');
+      // Example: you could now fetch the current user or navigate
+      // const me = await ApiService.request('/api/users/me');
+      // console.log('Current user:', me);
     } catch (err) {
       // If the API call fails (e.g., wrong password, server error)
       console.error('Login error:', err);

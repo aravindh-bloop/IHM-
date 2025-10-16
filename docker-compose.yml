@@ -36,12 +36,11 @@ services:
       - ./ihm_frontend:/app
     depends_on:
       - api
-    environment:
-      - VITE_API_URL=http://api:8000
 
   taskiq-worker:
     <<: *main_app
     labels: []
+    ports: []
     command:
       - taskiq
       - worker

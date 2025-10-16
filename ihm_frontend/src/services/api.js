@@ -2,9 +2,9 @@
  * API configuration and service
  */
 
-// In development with Vite proxy, use relative URLs
-// The proxy will handle routing to the backend
-const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+// Prefer relative URLs so proxies (Vite dev or Nginx) can keep same-origin.
+// If VITE_API_URL is explicitly set, use it (e.g., external API host).
+const API_BASE_URL = (import.meta.env?.VITE_API_URL ?? '');
 
 class ApiService {
   constructor() {
@@ -19,6 +19,8 @@ class ApiService {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      // Include cookies for cross-origin requests (required for cookie auth)
+      credentials: 'include',
       ...options,
     };
 
@@ -29,7 +31,19 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      // Handle empty responses (e.g., 204 from cookie login/logout)
+      if (response.status === 204) {
+        return null;
+      }
+
+      const ct = response.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        return await response.json();
+      }
+
+      // Fallback: return text (or null if empty)
+      const text = await response.text();
+      return text?.length ? text : null;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -56,9 +70,21 @@ class ApiService {
 
   // Auth endpoints
   async login(credentials) {
+    // FastAPI Users cookie login expects x-www-form-urlencoded
+    const form = new URLSearchParams();
+    const username = credentials.username ?? credentials.email ?? '';
+    form.set('username', username);
+    form.set('password', credentials.password ?? '');
+    // Optional fields supported by the endpoint
+    form.set('scope', credentials.scope ?? '');
+    if (credentials.grant_type) form.set('grant_type', credentials.grant_type);
+    if (credentials.client_id) form.set('client_id', credentials.client_id);
+    if (credentials.client_secret) form.set('client_secret', credentials.client_secret);
+
     return this.request('/api/auth/cookie/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
     });
   }
 
