@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 
-from ihm_backend.web.api import echo, monitoring, redis, users, stall
+from ihm_backend.web.api import echo, monitoring, redis, stall, users
 
 api_router = APIRouter()
 api_router.include_router(monitoring.router)
