@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     log_level: LogLevel = LogLevel.INFO
     users_secret: str = os.getenv("USERS_SECRET", "")
+    # Super User settings
+    super_user: str = os.getenv("SUPER_USER")
+    super_user_pass: str = os.getenv("SUPER_USER_PASS")
     # Variables for the database
     db_host: str = "localhost"
     db_port: int = 5432

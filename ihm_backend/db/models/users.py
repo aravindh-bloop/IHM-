@@ -1,6 +1,6 @@
 # type: ignore
 import uuid
-
+import enum
 from fastapi import Depends
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas
 from fastapi_users.authentication import (
@@ -10,26 +10,44 @@ from fastapi_users.authentication import (
 )
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy import Column, String, Enum as AlchemyEnum, DateTime
 from ihm_backend.db.base import Base
 from ihm_backend.db.dependencies import get_db_session
 from ihm_backend.settings import settings
+from datetime import datetime
+
+
+class UserRole(str, enum.Enum):
+    """user roles"""
+    ADMIN = "admin"
+    STALL_OWNER = "stall"
+    VENDOR = "vendor"
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
     """Represents a user entity."""
 
+    role: UserRole = Column(AlchemyEnum(UserRole), nullable=False)
+    created_at: datetime = Column(DateTime, default=datetime.utcnow())
+
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     """Represents a read command for a user."""
+
+    role: UserRole
+    created_at: datetime
 
 
 class UserCreate(schemas.BaseUserCreate):
     """Represents a create command for a user."""
 
+    role: UserRole = UserRole.STALL_OWNER
+
 
 class UserUpdate(schemas.BaseUserUpdate):
     """Represents an update command for a user."""
+
+    role: UserRole | None = None
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

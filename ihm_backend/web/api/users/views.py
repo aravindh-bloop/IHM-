@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from ihm_backend.db.models.users import (  # type: ignore
     UserCreate,
@@ -6,7 +6,9 @@ from ihm_backend.db.models.users import (  # type: ignore
     UserUpdate,
     api_users,
     auth_cookie,
+    UserRole
 )
+from ihm_backend.web.dependencies.auth import require_role
 
 router = APIRouter()
 
@@ -14,6 +16,7 @@ router.include_router(
     api_users.get_register_router(UserRead, UserCreate),
     prefix="/auth",
     tags=["auth"],
+    dependencies=[Depends(require_role(UserRole.ADMIN))]
 )
 
 router.include_router(
@@ -32,6 +35,7 @@ router.include_router(
     api_users.get_users_router(UserRead, UserUpdate),
     prefix="/users",
     tags=["users"],
+    dependencies=[Depends(require_role(UserRole.ADMIN))]
 )
 router.include_router(
     api_users.get_auth_router(auth_cookie),
