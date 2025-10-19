@@ -16,6 +16,7 @@ from ihm_backend.db.dependencies import get_db_session
 from ihm_backend.settings import settings
 from datetime import datetime
 
+from sqlalchemy.orm import relationship
 
 class UserRole(str, enum.Enum):
     """user roles"""
@@ -29,7 +30,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     role: UserRole = Column(AlchemyEnum(UserRole), nullable=False)
     created_at: datetime = Column(DateTime, default=datetime.utcnow())
-
+    stalls = relationship("Stall", back_populates="operator", lazy="select")
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     """Represents a read command for a user."""
