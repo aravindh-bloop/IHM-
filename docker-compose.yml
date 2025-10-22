@@ -32,8 +32,6 @@ services:
     restart: always
     ports:
       - "3000:80"
-    volumes:
-      - ./ihm_frontend:/app
     depends_on:
       - api
 
