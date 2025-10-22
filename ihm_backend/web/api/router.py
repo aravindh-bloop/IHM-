@@ -1,6 +1,10 @@
 from fastapi.routing import APIRouter
+from fastapi import Depends
 
 from ihm_backend.web.api import echo, monitoring, redis, stall, users
+from ihm_backend.web.dependencies.auth import require_role
+from ihm_backend.db.models.users import UserRole
+
 
 api_router = APIRouter()
 api_router.include_router(monitoring.router)
