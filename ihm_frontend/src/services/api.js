@@ -1,98 +1,222 @@
-/**
- * API configuration and service
- */
+import axios from 'axios';
 
-// Prefer relative URLs so proxies (Vite dev or Nginx) can keep same-origin.
-// If VITE_API_URL is explicitly set, use it (e.g., external API host).
-const API_BASE_URL = (import.meta.env?.VITE_API_URL ?? '');
+// Base API URL - Update this to match your backend
+const API_BASE_URL = 'http://localhost:8000/api';
 
-class ApiService {
-  constructor() {
-    this.baseURL = API_BASE_URL;
-  }
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      // Include cookies for cross-origin requests (required for cookie auth)
-      credentials: 'include',
-      ...options,
-    };
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Handle empty responses (e.g., 204 from cookie login/logout)
-      if (response.status === 204) {
-        return null;
-      }
-
-      const ct = response.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        return await response.json();
-      }
-
-      // Fallback: return text (or null if empty)
-      const text = await response.text();
-      return text?.length ? text : null;
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
+// Add token to requests if it exists
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
+);
 
-  // Health check endpoint
-  async healthCheck() {
-    return this.request('/api/health');
+// Handle response errors globally
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
   }
+);
 
-  // Echo endpoint for testing
-  async echo(message) {
-    return this.request('/api/echo/', {
-      method: 'POST',
-      body: JSON.stringify({ message }),
+// ==================== AUTH APIs ====================
+export const authAPI = {
+  // Login
+  login: async (credentials) => {
+    const response = await apiClient.post('/auth/login', credentials);
+    return response.data;
+  },
+
+  // Logout
+  logout: async () => {
+    const response = await apiClient.post('/auth/logout');
+    return response.data;
+  },
+
+  // Get current user
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  },
+};
+
+// ==================== CHEF APIs ====================
+export const chefAPI = {
+  // Create new order
+  createOrder: async (orderData) => {
+    const response = await apiClient.post('/chef/orders', orderData);
+    return response.data;
+  },
+
+  // Get all orders for the chef's kitchen
+  getOrders: async (params = {}) => {
+    const response = await apiClient.get('/chef/orders', { params });
+    return response.data;
+  },
+
+  // Get order by ID
+  getOrderById: async (orderId) => {
+    const response = await apiClient.get(`/chef/orders/${orderId}`);
+    return response.data;
+  },
+
+  // Get order history with filters
+  getOrderHistory: async (filters = {}) => {
+    const response = await apiClient.get('/chef/orders/history', {
+      params: filters,
     });
-  }
+    return response.data;
+  },
 
-  // Users endpoints
-  async getUsers() {
-    return this.request('/api/users');
-  }
-
-  // Auth endpoints
-  async login(credentials) {
-    // FastAPI Users cookie login expects x-www-form-urlencoded
-    const form = new URLSearchParams();
-    const username = credentials.username ?? credentials.email ?? '';
-    form.set('username', username);
-    form.set('password', credentials.password ?? '');
-    // Optional fields supported by the endpoint
-    form.set('scope', credentials.scope ?? '');
-    if (credentials.grant_type) form.set('grant_type', credentials.grant_type);
-    if (credentials.client_id) form.set('client_id', credentials.client_id);
-    if (credentials.client_secret) form.set('client_secret', credentials.client_secret);
-
-    return this.request('/api/auth/cookie/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form,
+  // Get monthly expenses
+  getMonthlyExpenses: async (month, year) => {
+    const response = await apiClient.get('/chef/expenses/monthly', {
+      params: { month, year },
     });
-  }
+    return response.data;
+  },
 
-  async logout() {
-    return this.request('/api/auth/cookie/logout', {
-      method: 'POST',
+  // Get expense summary
+  getExpenseSummary: async (startDate, endDate) => {
+    const response = await apiClient.get('/chef/expenses/summary', {
+      params: { start_date: startDate, end_date: endDate },
     });
-  }
-}
+    return response.data;
+  },
 
-export default new ApiService();
+  // Delete draft order (if needed)
+  deleteOrder: async (orderId) => {
+    const response = await apiClient.delete(`/chef/orders/${orderId}`);
+    return response.data;
+  },
+};
+
+// ==================== ADMIN APIs ====================
+export const adminAPI = {
+  // Get all pending merged orders
+  getPendingOrders: async () => {
+    const response = await apiClient.get('/admin/orders/pending');
+    return response.data;
+  },
+
+  // Get merged order details
+  getMergedOrderById: async (orderId) => {
+    const response = await apiClient.get(`/admin/orders/${orderId}`);
+    return response.data;
+  },
+
+  // Verify and forward order to vendor
+  verifyOrder: async (orderId) => {
+    const response = await apiClient.post(`/admin/orders/${orderId}/verify`);
+    return response.data;
+  },
+
+  // Get all verified orders
+  getVerifiedOrders: async (params = {}) => {
+    const response = await apiClient.get('/admin/orders/verified', { params });
+    return response.data;
+  },
+
+  // Get order history
+  getOrderHistory: async (filters = {}) => {
+    const response = await apiClient.get('/admin/orders/history', {
+      params: filters,
+    });
+    return response.data;
+  },
+
+  // Get statistics
+  getStatistics: async () => {
+    const response = await apiClient.get('/admin/statistics');
+    return response.data;
+  },
+};
+
+// ==================== VENDOR APIs ====================
+export const vendorAPI = {
+  // Get all orders from admin
+  getOrders: async (status = 'verified') => {
+    const response = await apiClient.get('/vendor/orders', {
+      params: { status },
+    });
+    return response.data;
+  },
+
+  // Get order by ID
+  getOrderById: async (orderId) => {
+    const response = await apiClient.get(`/vendor/orders/${orderId}`);
+    return response.data;
+  },
+
+  // Confirm order
+  confirmOrder: async (orderId) => {
+    const response = await apiClient.post(`/vendor/orders/${orderId}/confirm`);
+    return response.data;
+  },
+
+  // Mark order as supplied
+  markAsSupplied: async (orderId, supplyData = {}) => {
+    const response = await apiClient.post(
+      `/vendor/orders/${orderId}/supply`,
+      supplyData
+    );
+    return response.data;
+  },
+
+  // Get supply history
+  getSupplyHistory: async (filters = {}) => {
+    const response = await apiClient.get('/vendor/orders/history', {
+      params: filters,
+    });
+    return response.data;
+  },
+
+  // Get pending supplies
+  getPendingSupplies: async () => {
+    const response = await apiClient.get('/vendor/orders/pending-supplies');
+    return response.data;
+  },
+};
+
+// ==================== COMMON APIs ====================
+export const commonAPI = {
+  // Get all kitchens
+  getKitchens: async () => {
+    const response = await apiClient.get('/common/kitchens');
+    return response.data;
+  },
+
+  // Get order statuses
+  getOrderStatuses: async () => {
+    const response = await apiClient.get('/common/statuses');
+    return response.data;
+  },
+
+  // Get items master list (if you have predefined items)
+  getItems: async () => {
+    const response = await apiClient.get('/common/items');
+    return response.data;
+  },
+};
+
+export default apiClient;
