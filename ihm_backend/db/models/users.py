@@ -43,6 +43,7 @@ class UserCreate(schemas.BaseUserCreate):
     """Represents a create command for a user."""
 
     role: UserRole = UserRole.STALL_OWNER
+    stall_name: str | None = None
 
 
 class UserUpdate(schemas.BaseUserUpdate):
