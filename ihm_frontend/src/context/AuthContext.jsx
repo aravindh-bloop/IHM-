@@ -1,144 +1,87 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-// We can comment out the real API for now, or leave it for later
-// import { authAPI } from '../services/api';
+import { createContext, useContext, useState } from 'react';
 
+// 1. Create the context
 const AuthContext = createContext(null);
 
-// --- 1. FAKE API SIMULATION ---
-// This function mimics a real backend API call.
-const fakeApiLogin = (credentials) => {
-  console.log("Fake API received:", credentials);
-  // We return a Promise to simulate the asynchronous nature of a network request.
-  return new Promise((resolve, reject) => {
-    // Simulate a 1.5-second network delay so we can see the loading spinner.
-    setTimeout(() => {
-      // --- Define our "valid" users here ---
-      if (
-        (credentials.role === 'chef' && credentials.email === 'chef@ihm.edu' && credentials.password === 'password123') ||
-        (credentials.role === 'admin' && credentials.email === 'admin@ihm.edu' && credentials.password === 'password123')
-      ) {
-        // If credentials are correct, resolve the promise with the expected data structure.
-        resolve({
-          token: 'fake-jwt-token-for-testing-12345',
-          user: {
-            id: 'user01',
-            name: `Test ${credentials.role.charAt(0).toUpperCase() + credentials.role.slice(1)}`,
-            email: credentials.email,
-            role: credentials.role,
-            kitchen: credentials.kitchen || null, // Include kitchen if it exists
-          },
-        });
-      } else {
-        // If credentials are wrong, reject the promise with an error object
-        // that matches the structure your catch block expects.
-        reject({
-          response: {
-            data: {
-              message: 'Invalid email or password.',
-            },
-          },
-        });
-      }
-    }, 1500);
-  });
-};
-
-
+// 2. Create the provider component
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(false); // For login/logout loading
 
-  // This useEffect is perfect, no changes needed here.
-  useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
+    // This is a derived value. If 'user' exists, we are authenticated.
+    const isAuthenticated = !!user; 
 
-      if (token && savedUser) {
-        try {
-          setUser(JSON.parse(savedUser));
-          setIsAuthenticated(true);
-        } catch (error) {
-          console.error('Failed to parse saved user:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
-      }
-      setLoading(false);
+    // Simulates a network request
+    const fakeNetworkRequest = () => {
+        return new Promise((resolve) => {
+            setTimeout(resolve, 500); // 0.5 second delay
+        });
     };
 
-    initAuth();
-  }, []);
+    const login = async (credentials) => {
+        setLoading(true);
+        await fakeNetworkRequest(); // Simulate loading
+        setLoading(false);
 
-  // --- 2. MODIFY THE LOGIN FUNCTION ---
-  const login = async (credentials) => {
-    try {
-      // Comment out the real API call
-      // const response = await authAPI.login(credentials);
+        // --- DUMMY LOGIN LOGIC ---
+        let success = false;
+        let error = '';
+        let userData = null;
 
-      // Call our new fake API function instead
-      const response = await fakeApiLogin(credentials);
-      
-      const { token, user: userData } = response;
+        if (credentials.role === 'chef') {
+            if (credentials.email === 'chef@ihm.edu' && credentials.password === '123') {
+                userData = {
+                    email: 'chef@ihm.edu',
+                    role: 'chef',
+                    kitchen: credentials.kitchen 
+                };
+                success = true;
+            } else {
+                error = 'Invalid chef credentials';
+            }
+        } else if (credentials.role === 'admin') {
+            if (credentials.email === 'admin@ihm.edu' && credentials.password === '123') {
+                userData = {
+                    email: 'admin@ihm.edu',
+                    role: 'admin'
+                };
+                success = true;
+            } else {
+                error = 'Invalid admin credentials';
+            }
+        } else if (credentials.role === 'vendor') {
+            if (credentials.email === 'vendor@ihm.edu' && credentials.password === '123') {
+                userData = {
+                    email: 'vendor@ihm.edu',
+                    role: 'vendor'
+                };
+                success = true;
+            } else {
+                error = 'Invalid vendor credentials';
+            }
+        } else {
+             error = 'Invalid role';
+        }
+        
+        if (success) {
+            setUser(userData);
+            return { success: true };
+        } else {
+            return { success: false, error: error };
+        }
+    };
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
+    const logout = () => {
+        setUser(null);
+    };
 
-      setUser(userData);
-      setIsAuthenticated(true);
-
-      return { success: true, user: userData };
-    } catch (error) {
-      console.error('Login failed:', error);
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Login failed. Please try again.',
-      };
-    }
-  };
-
-  // --- 3. (Optional) MODIFY THE LOGOUT FUNCTION ---
-  const logout = async () => {
-    try {
-      // We don't need to call a real logout endpoint for the fake API
-      // await authAPI.logout(); 
-      console.log("Fake logout successful.");
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // The cleanup logic is the most important part and stays the same.
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setUser(null);
-      setIsAuthenticated(false);
-    }
-  };
-
-  const updateUser = (userData) => {
-    const updatedUser = { ...user, ...userData };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-  };
-
-  const value = {
-    user,
-    isAuthenticated,
-    loading,
-    login,
-    logout,
-    updateUser,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    // 3. Provide the context value to children
+    return (
+        <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export default AuthContext;
+// 4. Create the custom hook to use the context
+export const useAuth = () => useContext(AuthContext);

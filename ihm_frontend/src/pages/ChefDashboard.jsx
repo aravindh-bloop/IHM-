@@ -1,472 +1,694 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { chefAPI } from '../services/api';
-import { 
-  Plus, Trash2, Send, History, TrendingUp, 
-  LogOut, Package, Calendar, DollarSign, Search 
-} from 'lucide-react';
 
-export default function ChefDashboard() {
-  const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('create');
-  
-  // Create Order State
-  const [items, setItems] = useState([]);
-  const [itemName, setItemName] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('kg');
-  const [submitting, setSubmitting] = useState(false);
-  
-  // Order History State
-  const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  
-  // Expense Tracker State
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [expenses, setExpenses] = useState(null);
-  const [loadingExpenses, setLoadingExpenses] = useState(false);
+// --- MOCK DATA --- //
+const AVAILABLE_ITEMS = [
+  // ... (items list is unchanged)
+  "Onion", "Tomato", "Potato", "Carrot", "Garlic", "Ginger", "Green Chilli", "Bell Pepper (Capsicum)", "Cabbage", "Cauliflower", "Spinach", "Lady's Finger (Okra)", "Brinjal (Eggplant)", "Cucumber", "Lemon", "Coriander Leaves", "Mint Leaves", "Curry Leaves",
+  "Basmati Rice", "Sona Masoori Rice", "Idli Rice", "Whole Wheat Flour (Atta)", "All-Purpose Flour (Maida)", "Semolina (Rava/Sooji)", "Toor Dal (Arhar)", "Moong Dal", "Chana Dal", "Urad Dal", "Masoor Dal", "Chickpeas (Kabuli Chana)",
+  "Turmeric Powder", "Red Chilli Powder", "Coriander Powder", "Cumin Powder", "Garam Masala", "Mustard Seeds", "Cumin Seeds", "Fenugreek Seeds", "Asafoetida (Hing)", "Black Pepper", "Cardamom", "Cloves", "Cinnamon", "Salt",
+  "Milk", "Yogurt (Curd)", "Paneer", "Ghee", "Butter",
+  "Sunflower Oil", "Groundnut Oil", "Mustard Oil", "Coconut Oil",
+  "Sugar", "Jaggery", "Poha (Flattened Rice)", "Tamarind", "Vinegar"
+];
 
-  const units = ['kg', 'liters', 'pieces', 'grams', 'boxes', 'packets'];
-  const statuses = ['all', 'pending', 'sent_to_admin', 'verified', 'confirmed', 'supplied'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
-  // Load orders on mount
-  useEffect(() => {
-    if (activeTab === 'history') {
-      fetchOrders();
+
+// --- STYLES COMPONENT (Simplified) --- //
+const DashboardStyles = () => (
+  <style>{`
+    :root {
+      --primary-blue: #141414;
+      --primary-blue-dark: #2563eb;
+      --bg-gray: #b4b4dc;
+      --text-dark: #1f2937;
+      --text-light: #4b5563;
+      --text-muted: #6b7280;
+      --border-color: #e5e7eb;
+      --white: #ffffff;
+      --red: #ef4444;
+      --red-dark: #dc2626;
+      --green: #22c55e;
+      --green-dark: #16a34a;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
-  }, [activeTab]);
-
-  // Fetch orders
-  const fetchOrders = async () => {
-    setLoadingOrders(true);
-    try {
-      const data = await chefAPI.getOrderHistory();
-      setOrders(data.orders || []);
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-    } finally {
-      setLoadingOrders(false);
+    
+    body {
+      font-family: var(--font-family);
+      margin: 0;
     }
-  };
-
-  // Fetch expenses
-  const fetchExpenses = async () => {
-    setLoadingExpenses(true);
-    try {
-      const data = await chefAPI.getMonthlyExpenses(selectedMonth, selectedYear);
-      setExpenses(data);
-    } catch (error) {
-      console.error('Failed to fetch expenses:', error);
-    } finally {
-      setLoadingExpenses(false);
-    }
-  };
-
-  // Add item to order
-  const addItem = () => {
-    if (!itemName.trim() || !quantity || parseFloat(quantity) <= 0) {
-      alert('Please enter valid item details');
-      return;
+    
+    .dashboard-container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-gray);
     }
 
-    const newItem = {
-      id: Date.now(),
-      name: itemName.trim(),
-      quantity: parseFloat(quantity),
-      unit: unit
+    /* --- Sidebar --- */
+    .sidebar {
+      width: 256px; /* 16rem */
+      background-color: var(--white);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .sidebar-title {
+      font-size: 1.875rem; /* 3xl */
+      font-weight: 700;
+      color: var(--primary-blue);
+      letter-spacing: 0.05em;
+    }
+    .sidebar-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .sidebar-nav {
+      flex-grow: 1;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      color: var(--text-dark);
+      border-radius: 0.5rem;
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .sidebar-link:hover {
+      background-color: #f3f4f6;
+    }
+    .sidebar-link.active {
+      background-color: var(--primary-blue);
+      color: var(--white);
+    }
+    .sidebar-link svg {
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-right: 0.75rem;
+    }
+
+    /* --- Main Content --- */
+    .main-content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .header {
+      background-color: var(--white);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .header-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    .header-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .header-subtitle span {
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+    .btn-logout {
+      background-color: var(--red);
+      color: var(--white);
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-logout:hover {
+      background-color: var(--red-dark);
+    }
+    .btn-logout svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      margin-right: 0.5rem;
+    }
+
+    .page-content {
+      padding: 2rem;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+    
+    .page-section {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    .page-description {
+      color: var(--text-muted);
+    }
+    
+    .card {
+      background-color: var(--white);
+      padding: 1.5rem;
+      border-radius: 0.75rem;
+      box-shadow: var(--shadow);
+    }
+
+    /* --- Forms & Inputs --- */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+    @media (min-width: 768px) {
+      .form-grid {
+        grid-template-columns: repeat(5, 1fr);
+      }
+      .form-grid-col-2 {
+        grid-column: span 2 / span 2;
+      }
+    }
+    
+    .form-group {
+      position: relative;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-light);
+      margin-bottom: 0.25rem;
+    }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background-color: var(--white);
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      box-sizing: border-box; /* Important */
+    }
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--primary-blue);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+    }
+    .btn {
+      width: 100%;
+      background-color: var(--primary-blue);
+      color: var(--white);
+      font-weight: 700;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: background-color 0.2s;
+      border: none;
+      cursor: pointer;
+      height: 38px; /* Match input height */
+    }
+    .btn:hover {
+      background-color: var(--primary-blue-dark);
+    }
+    .btn-green {
+      background-color: var(--green);
+      font-size: 1.125rem;
+      padding: 0.75rem 2rem;
+      height: auto;
+    }
+    .btn-green:hover {
+      background-color: var(--green-dark);
+    }
+    .btn-manual {
+      font-size: 0.875rem;
+      color: var(--primary-blue);
+      margin-top: 0.5rem;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+    .btn-manual:hover {
+      text-decoration: underline;
+    }
+    .manual-entry-text {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Search Dropdown */
+    .search-results {
+      position: absolute;
+      z-index: 10;
+      width: 100%;
+      background-color: var(--white);
+      border: 1px solid var(--border-color);
+      border-radius: 0.375rem;
+      margin-top: 0.25rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      max-height: 12rem;
+      overflow-y: auto;
+    }
+    .search-result-item {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    .search-result-item:hover {
+      background-color: #ebf8ff;
+    }
+
+    /* --- Table --- */
+    .table-container {
+      overflow-x: auto;
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+    }
+    .table-header {
+      background-color: #f9fafb;
+    }
+    .table th {
+      padding: 0.75rem 1.5rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .table td {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      font-size: 0.875rem;
+    }
+    .table-empty-row td {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+    .table-body tr:first-child td {
+      border-top: none;
+    }
+    .table-body {
+      background-color: var(--white);
+    }
+    .table-cell-name {
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+    .table-cell-action {
+      text-align: right;
+    }
+    .btn-remove {
+      color: var(--red);
+      font-weight: 500;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-remove:hover {
+      color: var(--red-dark);
+      text-decoration: underline;
+    }
+    .table-footer {
+      margin-top: 1.5rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    /* Order History */
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .history-filter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    /* All status badge CSS is removed */
+    
+  `}</style>
+);
+
+
+// --- SVG ICONS --- //
+const CreateOrderIcon = () => (
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2-2z"></path></svg>
+);
+const HistoryIcon = () => (
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+);
+const LogoutIcon = () => (
+   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+);
+
+// --- Sub-Components --- //
+
+const Sidebar = ({ activePage, setActivePage }) => {
+    const linkClasses = (page) => 
+        `sidebar-link ${activePage === page ? 'active' : ''}`;
+
+    return (
+        <aside className="sidebar">
+            <div className="sidebar-header">
+                <h1 className="sidebar-title">FUMU</h1>
+                <p className="sidebar-subtitle">Chef Portal</p>
+            </div>
+            <nav className="sidebar-nav">
+                <a onClick={() => setActivePage('create-order')} className={linkClasses('create-order')}>
+                    <CreateOrderIcon /> Create Order
+                </a>
+                <a onClick={() => setActivePage('order-history')} className={linkClasses('order-history')}>
+                    <HistoryIcon /> Order History
+                </a>
+            </nav>
+        </aside>
+    );
+};
+
+const Header = ({ kitchen, onLogout }) => (
+    <header className="header">
+        <div>
+            <h2 className="header-title">Welcome Chef!</h2>
+            <p className="header-subtitle">Kitchen: <span>{kitchen || 'Loading...'}</span></p>
+        </div>
+        <button className="btn-logout" onClick={onLogout}>
+            <LogoutIcon /> Logout
+        </button>
+    </header>
+);
+
+const CreateOrderPage = () => {
+    // ... (This component is unchanged)
+    const [orderItems, setOrderItems] = React.useState([]);
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [itemName, setItemName] = React.useState('');
+    const [quantity, setQuantity] =React.useState('');
+    const [unit, setUnit] = React.useState('kg');
+    const [isManualEntry, setIsManualEntry] = React.useState(false);
+    const [itemInputValue, setItemInputValue] = React.useState('');
+
+    const filteredItems = searchQuery 
+        ? AVAILABLE_ITEMS.filter(item => item.toLowerCase().includes(searchQuery.toLowerCase()))
+        : [];
+
+    const handleAddItem = () => {
+        if (itemName && quantity) {
+            const newItem = { name: itemName, quantity, unit };
+            setOrderItems([...orderItems, newItem]);
+            // Reset fields
+            setItemName('');
+            setQuantity('');
+            setUnit('kg');
+            setSearchQuery('');
+            setIsManualEntry(false);
+            setItemInputValue('');
+        }
     };
 
-    setItems([...items, newItem]);
-    setItemName('');
-    setQuantity('');
-    setUnit('kg');
-  };
+    const handleSelectItem = (item) => {
+        setItemName(item);
+        setItemInputValue(item);
+        setSearchQuery('');
+        setIsManualEntry(false);
+    };
 
-  // Remove item from order
-  const removeItem = (id) => {
-    setItems(items.filter(item => item.id !== id));
-  };
+    const handleRemoveItem = (indexToRemove) => {
+        setOrderItems(orderItems.filter((_, index) => index !== indexToRemove));
+    };
+    
+    const handleInputChange = (e) => {
+        const value = e.target.value;
+        setItemInputValue(value);
 
-  // Submit order
-  const submitOrder = async () => {
-    if (items.length === 0) {
-      alert('Please add at least one item');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const orderData = {
-        kitchen: user.kitchen,
-        items: items.map(({ id, ...rest }) => rest),
-        order_date: new Date().toISOString()
-      };
-
-      await chefAPI.createOrder(orderData);
-      alert('Order submitted successfully!');
-      setItems([]);
-    } catch (error) {
-      console.error('Failed to submit order:', error);
-      alert('Failed to submit order. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Filter orders
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.items?.some(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Status badge component
-  const StatusBadge = ({ status }) => {
-    const styles = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      sent_to_admin: 'bg-blue-100 text-blue-800 border-blue-300',
-      verified: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-      confirmed: 'bg-green-100 text-green-800 border-green-300',
-      supplied: 'bg-emerald-100 text-emerald-800 border-emerald-300'
+        if(isManualEntry){
+            setItemName(value);
+        } else {
+            setSearchQuery(value);
+            setItemName(value);
+        }
     };
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.pending}`}>
-        {status?.replace('_', ' ').toUpperCase()}
-      </span>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">{user.kitchen} Kitchen</h1>
-            <p className="text-sm text-gray-600">Chef: {user.name || user.email}</p>
-          </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-8">
-            {[
-              { id: 'create', label: 'Create Order', icon: Plus },
-              { id: 'history', label: 'Order History', icon: History },
-              { id: 'expenses', label: 'Expense Tracker', icon: TrendingUp }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-4 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Create Order Tab */}
-        {activeTab === 'create' && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Add Item Form */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Package className="w-5 h-5 text-blue-600" />
-                Add Items
-              </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Item Name
-                  </label>
-                  <input
-                    type="text"
-                    value={itemName}
-                    onChange={(e) => setItemName(e.target.value)}
-                    placeholder="e.g., Rice, Tomatoes, Oil"
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Unit
-                    </label>
-                    <select
-                      value={unit}
-                      onChange={(e) => setUnit(e.target.value)}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      {units.map(u => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  onClick={addItem}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Item
-                </button>
-              </div>
+        <div className="page-section">
+            <div>
+                <h3 className="page-title">Create Daily Order</h3>
+                <p className="page-description">Search for an item or add one manually to build your order list.</p>
             </div>
 
-            {/* Order List */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                Order Items ({items.length})
-              </h2>
+            {/* Item Input Section */}
+            <div className="card">
+                <div className="form-grid">
+                    <div className="form-group form-grid-col-2">
+                        <label htmlFor="item-search" className="form-label">Search Item</label>
+                        <input 
+                            type="text" 
+                            id="item-search"
+                            placeholder="e.g., Onion"
+                            className="form-input"
+                            value={itemInputValue}
+                            onChange={handleInputChange}
+                        />
+                        {searchQuery && filteredItems.length > 0 && (
+                            <div className="search-results">
+                                {filteredItems.map(item => (
+                                    <div 
+                                        key={item}
+                                        className="search-result-item"
+                                        onClick={() => handleSelectItem(item)}
+                                    >
+                                        {item}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                         {!isManualEntry && (
+                            <button onClick={() => { setIsManualEntry(true); setSearchQuery(''); setItemInputValue(''); setItemName(''); }} 
+                                    className="btn-manual">
+                                Can't find it? Add manually.
+                            </button>
+                        )}
+                        {isManualEntry && <p className="manual-entry-text"><button onClick={() => {setIsManualEntry(false); setItemInputValue('');}} className="btn-manual">Cancel</button></p>}
+                    </div>
 
-              {items.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No items added yet</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
-                    {items.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-800">{item.name}</p>
-                          <p className="text-sm text-gray-600">{item.quantity} {item.unit}</p>
-                        </div>
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    <div className="form-group">
+                        <label htmlFor="item-quantity" className="form-label">Quantity</label>
+                        <input 
+                            type="number" 
+                            id="item-quantity" 
+                            placeholder="e.g., 20" 
+                            className="form-input"
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="item-unit" className="form-label">Unit</label>
+                        <select 
+                            id="item-unit" 
+                            className="form-select"
+                            value={unit}
+                            onChange={(e) => setUnit(e.target.value)}
                         >
-                          <Trash2 className="w-4 h-4" />
+                            <option>kg</option>
+                            <option>liters</option>
+                            <option>pieces</option>
+                            <option>grams</option>
+                            <option>packet</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <button onClick={handleAddItem} className="btn">
+                            Add Item
                         </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={submitOrder}
-                    disabled={submitting}
-                    className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium disabled:opacity-50"
-                  >
-                    {submitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        Submit Order
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Order History Tab */}
-        {activeTab === 'history' && (
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <History className="w-5 h-5 text-blue-600" />
-                Order History
-              </h2>
-              <button
-                onClick={fetchOrders}
-                disabled={loadingOrders}
-                className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                {loadingOrders ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-
-            {/* Filters */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search items..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                {statuses.map(status => (
-                  <option key={status} value={status}>
-                    {status === 'all' ? 'All Statuses' : status.replace('_', ' ').toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Orders Table */}
-            {loadingOrders ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No orders found</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Items</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Total Items</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredOrders.map(order => (
-                      <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">
-                          {new Date(order.created_at || order.order_date).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {order.items?.slice(0, 2).map(item => item.name).join(', ')}
-                          {order.items?.length > 2 && ` +${order.items.length - 2} more`}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={order.status} />
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-800">
-                          {order.items?.length || 0} items
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Expense Tracker Tab */}
-        {activeTab === 'expenses' && (
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-blue-600" />
-              Monthly Expense Tracker
-            </h2>
-
-            {/* Month/Year Selector */}
-            <div className="grid md:grid-cols-3 gap-4 mb-6">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                {months.map((month, index) => (
-                  <option key={month} value={index + 1}>{month}</option>
-                ))}
-              </select>
-
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                {[2024, 2025, 2026].map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-
-              <button
-                onClick={fetchExpenses}
-                disabled={loadingExpenses}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {loadingExpenses ? 'Loading...' : 'Get Expenses'}
-              </button>
-            </div>
-
-            {/* Expense Display */}
-            {expenses ? (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="p-6 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-600 font-medium mb-1">Total Orders</p>
-                  <p className="text-3xl font-bold text-blue-900">{expenses.total_orders || 0}</p>
+                    </div>
                 </div>
-                <div className="p-6 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-600 font-medium mb-1">Total Expense</p>
-                  <p className="text-3xl font-bold text-green-900">₹{expenses.total_expense || 0}</p>
+            </div>
+
+            {/* Order List Table */}
+            <div className="card">
+                <h4 className="page-title" style={{fontSize: '1.25rem', marginBottom: '1rem'}}>Today's Order List ({orderItems.length} items)</h4>
+                <div className="table-container">
+                    <table className="table">
+                        <thead className="table-header">
+                            <tr>
+                                <th>#</th>
+                                <th>Item Name</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th className="table-cell-action">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="table-body">
+                            {orderItems.length > 0 ? (
+                                orderItems.map((item, index) => (
+                                    <tr key={index}>
+                                        <td>{index + 1}</td>
+                                        <td className="table-cell-name">{item.name}</td>
+                                        <td>{item.quantity}</td>
+                                        <td>{item.unit}</td>
+                                        <td className="table-cell-action">
+                                            <button onClick={() => handleRemoveItem(index)} className="btn-remove">Remove</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr className="table-empty-row">
+                                    <td colSpan="5">Your order list is empty. Add items above to get started.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-                <div className="p-6 bg-purple-50 rounded-lg border border-purple-200">
-                  <p className="text-sm text-purple-600 font-medium mb-1">Avg per Order</p>
-                  <p className="text-3xl font-bold text-purple-900">
-                    ₹{expenses.total_orders ? (expenses.total_expense / expenses.total_orders).toFixed(2) : 0}
-                  </p>
+                {orderItems.length > 0 && (
+                     <div className="table-footer">
+                        <button className="btn btn-green">
+                            Submit Final Order
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- UPDATED OrderHistoryPage (Simplified Receipt) --- //
+const OrderHistoryPage = () => {
+    const [orders, setOrders] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    
+    React.useEffect(() => {
+        setLoading(true);
+        // Simulating an API call to fetch order history
+        const timer = setTimeout(() => {
+            setOrders(MOCK_ORDERS);
+            setLoading(false);
+        }, 1000); // 1 second delay
+        
+        return () => clearTimeout(timer); // Cleanup
+    }, []);
+
+    // Helper function to show a summary of items
+    const getItemSummary = (items) => {
+        if (!items || items.length === 0) return 'No items';
+        
+        const firstTwo = items.slice(0, 2).map(item => item.name).join(', ');
+        
+        if (items.length > 2) {
+            return `${firstTwo} + ${items.length - 2} more`;
+        }
+        return firstTwo;
+    };
+
+    return (
+        <div className="page-section">
+            <div>
+                <h3 className="page-title">Order History</h3>
+                <p className="page-description">A record of your submitted orders for the current month.</p>
+            </div>
+             <div className="card">
+                 <div className="history-header">
+                     <h4 className="page-title" style={{fontSize: '1.25rem'}}>All Past Orders</h4>
+                     <div className="history-filter">
+                         <label htmlFor="date-filter" className="form-label" style={{marginBottom: 0}}>Filter by Date:</label>
+                         <input type="date" id="date-filter" className="form-input"/>
+                     </div>
+                 </div>
+                <div className="table-container">
+                    <table className="table">
+                        <thead className="table-header">
+                            <tr>
+                                <th>Date</th>
+                                <th>Items Ordered</th>
+                                <th>Total Items</th>
+                            </tr>
+                        </thead>
+                        <tbody className="table-body">
+                            {loading ? (
+                                <tr className="table-empty-row">
+                                    <td colSpan="3">Loading history...</td>
+                                </tr>
+                            ) : orders.length > 0 ? (
+                                orders.map((order) => (
+                                    <tr key={order.id}>
+                                        <td className="table-cell-name">{order.date}</td>
+                                        <td>{getItemSummary(order.items)}</td>
+                                        <td>{order.items.length} items</td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr className="table-empty-row">
+                                    <td colSpan="3">No past orders found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-gray-400">
-                <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Select month and year to view expenses</p>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
-  );
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main App Component --- //
+
+export default function App() {
+    const [activePage, setActivePage] = React.useState('create-order');
+    const { user, logout } = useAuth(); 
+
+    const renderPage = () => {
+        switch (activePage) {
+            case 'create-order':
+                return <CreateOrderPage />;
+            case 'order-history':
+                return <OrderHistoryPage />;
+            default:
+                return <CreateOrderPage />;
+        }
+    };
+
+    return (
+        <>
+            <DashboardStyles />
+            <div className="dashboard-container">
+                <Sidebar activePage={activePage} setActivePage={setActivePage} />
+                <main className="main-content">
+                    <Header kitchen={user?.kitchen} onLogout={logout} />
+                    <div className="page-content">
+                        {renderPage()}
+                    </div>
+                </main>
+            </div>
+        </>
+    );
 }
