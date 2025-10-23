@@ -17,22 +17,24 @@ const AVAILABLE_ITEMS = [
 // --- STYLES COMPONENT (Simplified) --- //
 const DashboardStyles = () => (
   <style>{`
-    :root {
-      --primary-blue: #141414;
-      --primary-blue-dark: #2563eb;
-      --bg-gray: #b4b4dc;
-      --text-dark: #1f2937;
-      --text-light: #4b5563;
-      --text-muted: #6b7280;
-      --border-color: #e5e7eb;
-      --white: #ffffff;
-      --red: #ef4444;
-      --red-dark: #dc2626;
-      --green: #22c55e;
-      --green-dark: #16a34a;
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    }
+   :root {
+  --primary-blue: #5b21b6;
+  --primary-blue-dark: #3b0764;
+  --bg-gray: #e9d5ff;
+  --text-dark: #1e1b4b;
+  --text-light: #6d28d9;
+  --text-muted: #7c7aa9;
+  --border-color: #9f8bf5;
+  --white: #f5e1ff;
+  --red: #dc2626;
+  --red-dark: #991b1b;
+  --green: #22c55e;
+  --green-dark: #15803d;
+  --shadow: 0 8px 16px rgba(93, 51, 177, 0.2);
+  --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
+
     
     body {
       font-family: var(--font-family);

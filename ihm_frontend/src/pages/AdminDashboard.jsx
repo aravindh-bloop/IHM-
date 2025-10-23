@@ -10,21 +10,22 @@ import { useAuth } from '../context/AuthContext';
 const DashboardStyles = () => (
   <style>{`
     :root {
-      --primary-blue: #3b82f6;
-      --primary-blue-dark: #2563eb;
-      --bg-gray: #f3f4f6;
-      --text-dark: #1f2937;
-      --text-light: #4b5563;
-      --text-muted: #6b7280;
-      --border-color: #e5e7eb;
-      --white: #ffffff;
-      --red: #ef4444;
-      --red-dark: #dc2626;
-      --green: #22c55e;
-      --green-dark: #16a34a;
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    }
+  --primary-blue: #5b21b6;
+  --primary-blue-dark: #3b0764;
+  --bg-gray: #e9d5ff;
+  --text-dark: #0f172a;
+  --text-light: #334155;
+  --text-muted: #64748b;
+  --border-color: #9f8bf5;
+  --white: #f5e1ff;
+  --red: #dc2626;
+  --red-dark: #991b1b;
+  --green: #16a34a;
+  --green-dark: #15803d;
+  --shadow: 0 6px 10px rgba(30, 58, 138, 0.15);
+  --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
     
     body {
       font-family: var(--font-family);
