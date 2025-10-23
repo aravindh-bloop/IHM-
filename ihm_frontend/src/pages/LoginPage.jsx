@@ -6,24 +6,17 @@ export default function LoginPage() {
   const { login } = useAuth();
   
   const [userRole, setUserRole] = useState('');
-  const [kitchen, setKitchen] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const kitchens = ['BTK', 'ATK', 'QTK', 'CRAFT'];
-
   const handleLogin = async () => {
     setError('');
 
     if (!userRole) {
       setError('Please select your role');
-      return;
-    }
-    if (userRole === 'chef' && !kitchen) {
-      setError('Please select your kitchen');
       return;
     }
     if (!email || !password) {
@@ -40,9 +33,10 @@ export default function LoginPage() {
         password: password,
       };
 
-      if (userRole === 'chef') {
-        credentials.kitchen = kitchen;
-      }
+      // Note: kitchen field is ignored for now as per requirements
+      // if (userRole === 'chef') {
+      //   credentials.kitchen = kitchen;
+      // }
 
       const result = await login(credentials);
 
@@ -59,9 +53,7 @@ export default function LoginPage() {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && userRole && email && password) {
-      if (userRole !== 'chef' || kitchen) {
-        handleLogin();
-      }
+      handleLogin();
     }
   };
 
@@ -151,7 +143,6 @@ export default function LoginPage() {
                       type="button"
                       onClick={() => {
                         setUserRole(id);
-                        if (id !== 'chef') setKitchen('');
                         setError('');
                       }}
                       disabled={loading}
@@ -177,33 +168,6 @@ export default function LoginPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Kitchen Selection */}
-              {userRole === 'chef' && (
-                <div style={{ animation: 'slideDown 0.3s ease-out' }}>
-                  <label style={{ display: 'block', color: 'white', fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>
-                    Select Kitchen
-                  </label>
-                  <select
-                    value={kitchen}
-                    onChange={(e) => {
-                      setKitchen(e.target.value);
-                      setError('');
-                    }}
-                    disabled={loading}
-                    style={{
-                      width: '100%', padding: '14px 16px', background: 'rgba(255, 255, 255, 0.2)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '12px',
-                      color: 'white', fontSize: '16px', outline: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    <option value="" style={{ background: '#0e4f61', color: 'white' }}>Choose your kitchen</option>
-                    {kitchens.map((k) => (
-                      <option key={k} value={k} style={{ background: '#0e4f61', color: 'white' }}>{k} Kitchen</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Email Input */}
               {userRole && (
@@ -270,12 +234,12 @@ export default function LoginPage() {
               {userRole && (
                 <button
                   type="button" onClick={handleLogin}
-                  disabled={loading || !email || !password || (userRole === 'chef' && !kitchen)}
+                  disabled={loading || !email || !password}
                   style={{
                     width: '100%', padding: '18px 24px', background: 'white', color: '#0e7490',
                     borderRadius: '12px', fontWeight: '600', fontSize: '18px', border: 'none',
-                    cursor: (loading || !email || !password || (userRole === 'chef' && !kitchen)) ? 'not-allowed' : 'pointer',
-                    opacity: (loading || !email || !password || (userRole === 'chef' && !kitchen)) ? 0.5 : 1,
+                    cursor: (loading || !email || !password) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || !email || !password) ? 0.5 : 1,
                     transition: 'transform 0.2s',
                   }}
                 >

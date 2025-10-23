@@ -14,13 +14,13 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy all /api requests to the backend
         '/api': {
-          target: env.VITE_BACKEND_URL || 'http://localhost:8001',
+          // In Docker, use the service name; otherwise use localhost
+          target: env.VITE_BACKEND_URL || 'http://api:8000',
           changeOrigin: true,
           secure: false,
           rewrite: (path) => {
-            
             console.log('Proxying:', path);
-            return path; // Keep /api prefix for now
+            return path; // Keep /api prefix
           }
         }
       }
