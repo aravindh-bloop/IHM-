@@ -19,7 +19,7 @@ const DashboardStyles = () => (
   <style>{`
    :root {
   --primary-blue: #5b21b6;
-  --primary-blue-dark: #3b0764;
+  --primary-blue-dark: #588157;
   --bg-gray: #e9d5ff;
   --text-dark: #1e1b4b;
   --text-light: #6d28d9;
