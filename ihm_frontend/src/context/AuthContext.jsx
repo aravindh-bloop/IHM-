@@ -1,151 +1,112 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+// import axios from 'axios'; // <-- No longer needed
 
-// API Base URL - uses proxy in development
-const API_BASE_URL = '/api';
-
-// Create the context
+// const API_BASE_URL = '/api'; // <-- No longer needed
 const AuthContext = createContext(null);
 
-// Create the provider component
+// --- DUMMY USER DATA ---
+// Passwords can be anything, like '123'
+const DUMMY_USERS = {
+  'chef@ihm.edu': {
+    password: '123',
+    userData: { id: 'dummy-chef', email: 'chef@ihm.edu', role: 'chef' } // Kitchen added dynamically
+  },
+  'admin@ihm.edu': {
+    password: '123',
+    userData: { id: 'dummy-admin', email: 'admin@ihm.edu', role: 'admin' }
+  },
+  'vendor@ihm.edu': {
+    password: '123',
+    userData: { id: 'dummy-vendor', email: 'vendor@ihm.edu', role: 'vendor' }
+  }
+};
+// -----------------------
+
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true); // Initial loading for auth check
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // Initial loading for auth check
 
-    // This is a derived value. If 'user' exists, we are authenticated.
-    const isAuthenticated = !!user;
+  const isAuthenticated = !!user;
 
-    // Check if user is already logged in on mount
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                // Check if we have stored user data
-                const storedUser = localStorage.getItem('user');
-                if (storedUser) {
-                    setUser(JSON.parse(storedUser));
-                }
-            } catch (error) {
-                console.error('Auth check error:', error);
-                localStorage.removeItem('user');
-            } finally {
-                setLoading(false);
-            }
-        };
+  // Check if user is already logged in on mount (FROM LOCAL STORAGE ONLY)
+  useEffect(() => {
+    const checkAuth = () => { // Removed 'async'
+      const storedUser = localStorage.getItem('user');
 
-        checkAuth();
-    }, []);
+      if (storedUser) {
+        try {
+          // If validation succeeds, set the user from storage
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          // If validation fails, clear the bad local data
+          console.error('Local storage parsing failed:', error);
+          localStorage.removeItem('user');
+          setUser(null);
+        }
+      }
+      // Set loading to false only after the check is complete
+      setLoading(false);
+    };
 
-    const login = async (credentials) => {
-        setLoading(true);
+    checkAuth();
+  }, []);
+
+  // --- MODIFIED DUMMY LOGIN FUNCTION ---
+  const login = async (credentials) => {
+    console.log('Attempting dummy login with:', credentials.email);
+
+    const potentialUser = DUMMY_USERS[credentials.email];
+
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Check if user exists and password matches
+    if (potentialUser && potentialUser.password === credentials.password) {
         
-        try {
-            // Map frontend role to backend role
-            // Frontend: chef, admin, vendor
-            // Backend: stall (for chef), admin, vendor
-            const backendRole = credentials.role === 'chef' ? 'stall' : credentials.role;
-            
-            // Prepare login data for fastapi-users cookie authentication
-            const formData = new URLSearchParams();
-            formData.append('username', credentials.email);
-            formData.append('password', credentials.password);
-
-            console.log('Attempting login with:', credentials.email);
-
-            // Login using fastapi-users cookie endpoint
-            const response = await axios.post(
-                `${API_BASE_URL}/auth/cookie/login`,
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    withCredentials: true, // Important for cookies
-                }
-            );
-
-            console.log('Login response:', response.status);
-
-            if (response.status === 204 || response.status === 200) {
-                // Login successful, now fetch user details
-                console.log('Fetching user details...');
-                const userResponse = await axios.get(
-                    `${API_BASE_URL}/users/me`,
-                    {
-                        withCredentials: true,
-                    }
-                );
-
-                console.log('User data:', userResponse.data);
-
-                const userData = userResponse.data;
-                
-                // Map backend role to frontend role
-                const frontendRole = userData.role === 'stall' ? 'chef' : userData.role;
-                
-                const userInfo = {
-                    id: userData.id,
-                    email: userData.email,
-                    role: frontendRole,
-                    kitchen: credentials.kitchen || null, // Store kitchen if chef
-                };
-
-                setUser(userInfo);
-                localStorage.setItem('user', JSON.stringify(userInfo));
-                setLoading(false);
-                return { success: true };
-            }
-        } catch (error) {
-            setLoading(false);
-            console.error('Login error:', error);
-            console.error('Error response:', error.response?.data);
-            console.error('Error status:', error.response?.status);
-            
-            let errorMessage = 'Login failed. Please try again.';
-            
-            if (error.response) {
-                if (error.response.status === 400) {
-                    errorMessage = 'Invalid credentials. Please check your email and password.';
-                } else if (error.response.status === 401) {
-                    errorMessage = 'Invalid credentials. Please check your email and password.';
-                } else if (error.response.status === 500) {
-                    errorMessage = 'Server error. Please try again later.';
-                } else if (error.response.data?.detail) {
-                    errorMessage = error.response.data.detail;
-                }
-            } else if (error.request) {
-                errorMessage = 'Cannot connect to server. Please check your connection.';
-            }
-            
-            return { success: false, error: errorMessage };
+        // Check if the role they selected on the form matches the dummy user's role
+        if (potentialUser.userData.role !== credentials.role) {
+            return { success: false, error: `Invalid credentials for the '${credentials.role}' role.` };
         }
-    };
 
-    const logout = async () => {
-        try {
-            // Call backend logout endpoint
-            await axios.post(
-                `${API_BASE_URL}/auth/cookie/logout`,
-                {},
-                {
-                    withCredentials: true,
-                }
-            );
-        } catch (error) {
-            console.error('Logout error:', error);
-        } finally {
-            // Clear local state regardless of backend response
-            setUser(null);
-            localStorage.removeItem('user');
+        let userInfo = { ...potentialUser.userData };
+
+        // Add kitchen specifically for the chef role
+        if (userInfo.role === 'chef') {
+            userInfo.kitchen = credentials.kitchen || 'Unknown'; // Get kitchen from login form
         }
-    };
 
-    // Provide the context value to children
-    return (
-        <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
-            {children}
-        </AuthContext.Provider>
-    );
+        console.log('Dummy login successful:', userInfo);
+        setUser(userInfo);
+        localStorage.setItem('user', JSON.stringify(userInfo));
+        return { success: true };
+    } else {
+        // Generic error for security
+        console.log('Dummy login failed');
+        return { success: false, error: 'Invalid email or password.' };
+    }
+  };
+
+  // --- MODIFIED DUMMY LOGOUT FUNCTION ---
+  const logout = () => { // Removed 'async'
+    try {
+      // No API call needed
+      console.log('Logging out (dummy)');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('user');
+    }
+  };
+  
+  return (
+    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-// Create the custom hook to use the context
+// Add this line to disable the warning for your hook
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

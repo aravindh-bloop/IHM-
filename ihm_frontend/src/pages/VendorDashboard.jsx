@@ -26,6 +26,7 @@ const MOCK_INCOMING_ORDERS = [
 
 const MOCK_SUPPLY_HISTORY = [
     { id: 'ORD-101', date: '2025-10-21', itemCount: 12, status: 'Supplied' },
+    { id: 'ORD-100', date: '2025-10-19', itemCount: 8, status: 'Not Supplied' },
     { id: 'ORD-099', date: '2025-10-18', itemCount: 20, status: 'Supplied' },
 ];
 
@@ -327,9 +328,13 @@ const DashboardStyles = () => (
       background-color: #dbeafe; /* Blue */
       color: #1e40af;
     }
-    .status-supplied { /* For history page */
+    .status-supplied { /* For history page - Green */
       background-color: #dcfce7; /* Green */
       color: #166534;
+    }
+    .status-not-supplied { /* For history page - Red */
+      background-color: #fee2e2; /* Light Red */
+      color: #991b1b; /* Dark Red */
     }
     
   `}</style>
@@ -415,7 +420,7 @@ const OrderFeedbackRow = ({ order, onFeedbackChange, onSubmitFeedback }) => {
                  </td>
             </tr>
             {/* Item Rows for the Order */}
-            {order.items.map((item, index) => (
+            {order.items.map((item, ) => (
                 <tr key={item.id}>
                     <td className="table-cell-name">{item.name}</td>
                     <td>{item.quantity} {item.unit}</td>
@@ -442,11 +447,22 @@ const OrderFeedbackRow = ({ order, onFeedbackChange, onSubmitFeedback }) => {
                     </td>
                 </tr>
             ))}
-            {/* Row for the Submit button */}
+            {/* Row for Total Price and Submit button */}
              <tr style={{borderTop: '1px solid var(--border-color)'}}>
-                 <td colSpan="5" style={{textAlign: 'right', padding: '1rem'}}>
+                 <td colSpan="3" style={{padding: '1rem'}}>
+                    <label style={{fontWeight: '500', color: 'var(--text-dark)', marginRight: '0.5rem'}}>Total Price:</label>
+                    <input 
+                        type="text" 
+                        placeholder="Enter total price..." 
+                        className="feedback-input" 
+                        style={{width: '200px', display: 'inline-block', marginTop: 0}}
+                        value={onFeedbackChange.getOrderTotalPrice(order.orderId)}
+                        onChange={(e) => onFeedbackChange.setOrderTotalPrice(order.orderId, e.target.value)}
+                    />
+                 </td>
+                 <td colSpan="2" style={{textAlign: 'right', padding: '1rem'}}>
                     <button onClick={() => onSubmitFeedback(order.orderId)} className="btn btn-purple">
-                        <SendIcon /> Submit Feedback to Admin
+                        <SendIcon /> Send Status to Admin
                     </button>
                  </td>
              </tr>
@@ -487,6 +503,20 @@ const IncomingOrdersPage = () => {
             }
         }));
     };
+
+    const setOrderTotalPrice = (orderId, totalPrice) => {
+        setFeedback(prev => ({
+            ...prev,
+            [orderId]: {
+                ...prev[orderId],
+                totalPrice: totalPrice
+            }
+        }));
+    };
+
+    const getOrderTotalPrice = (orderId) => {
+        return feedback[orderId]?.totalPrice ?? '';
+    };
     // --------------------------------
 
     // Placeholder action
@@ -500,9 +530,14 @@ const IncomingOrdersPage = () => {
             notes: orderFeedback[item.id]?.notes ?? ''
         }));
 
-        console.log("Submitting feedback for Order:", orderId, completeFeedback); 
-        alert(`Submitting feedback for Order ${orderId}`);
-        // TODO: Send 'completeFeedback' array to backend API
+        const totalPrice = orderFeedback.totalPrice ?? '';
+
+        console.log("Submitting feedback for Order:", orderId, {
+            items: completeFeedback,
+            totalPrice: totalPrice
+        }); 
+        alert(`Sending status to Admin for Order ${orderId}\nTotal Price: ${totalPrice || 'Not provided'}`);
+        // TODO: Send 'completeFeedback' array and 'totalPrice' to backend API
         // On success, maybe remove the order from this list or refetch
     };
 
@@ -533,7 +568,12 @@ const IncomingOrdersPage = () => {
                                 <OrderFeedbackRow 
                                     key={order.orderId} 
                                     order={order} 
-                                    onFeedbackChange={{ getFeedback, setFeedback: setFeedbackItem }}
+                                    onFeedbackChange={{ 
+                                        getFeedback, 
+                                        setFeedback: setFeedbackItem,
+                                        getOrderTotalPrice,
+                                        setOrderTotalPrice
+                                    }}
                                     onSubmitFeedback={handleSubmitFeedback}
                                 />
                             ))}

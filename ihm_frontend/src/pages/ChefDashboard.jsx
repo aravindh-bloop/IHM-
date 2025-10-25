@@ -12,8 +12,6 @@ const AVAILABLE_ITEMS = [
   "Sugar", "Jaggery", "Poha (Flattened Rice)", "Tamarind", "Vinegar"
 ];
 
-
-
 // --- STYLES COMPONENT (Simplified) --- //
 const DashboardStyles = () => (
   <style>{`
@@ -87,6 +85,14 @@ const DashboardStyles = () => (
       transition: all 0.2s ease-in-out;
       cursor: pointer;
       text-decoration: none;
+
+      /* --- FIX: Added styles to make <button> look like <a> --- */
+      border: none;
+      background: none;
+      text-align: left;
+      font-family: inherit;
+      font-size: inherit;
+      width: 100%;
     }
     .sidebar-link:hover {
       background-color: #f3f4f6;
@@ -387,12 +393,13 @@ const Sidebar = ({ activePage, setActivePage }) => {
                 <p className="sidebar-subtitle">Chef Portal</p>
             </div>
             <nav className="sidebar-nav">
-                <a onClick={() => setActivePage('create-order')} className={linkClasses('create-order')}>
+                {/* --- FIX: Changed <a> tags to <button> for accessibility --- */}
+                <button onClick={() => setActivePage('create-order')} className={linkClasses('create-order')}>
                     <CreateOrderIcon /> Create Order
-                </a>
-                <a onClick={() => setActivePage('order-history')} className={linkClasses('order-history')}>
+                </button>
+                <button onClick={() => setActivePage('order-history')} className={linkClasses('order-history')}>
                     <HistoryIcon /> Order History
-                </a>
+                </button>
             </nav>
         </aside>
     );
@@ -449,16 +456,31 @@ const CreateOrderPage = () => {
         setOrderItems(orderItems.filter((_, index) => index !== indexToRemove));
     };
     
+    // --- FIX: This logic is updated to prevent adding items without selection ---
     const handleInputChange = (e) => {
         const value = e.target.value;
-        setItemInputValue(value);
+        setItemInputValue(value); // Always update the visible input
 
         if(isManualEntry){
-            setItemName(value);
+            setItemName(value); // If manual, update the "real" name
         } else {
-            setSearchQuery(value);
-            setItemName(value);
+            setSearchQuery(value); // If searching, update the query
+            setItemName(''); // <-- FIX: Clear name to force a selection from dropdown
         }
+    };
+
+    // --- FIX: Added a handler for the submit button ---
+    const handleSubmitOrder = () => {
+        if (orderItems.length === 0) {
+            alert("Please add items to your order before submitting.");
+            return;
+        }
+        // TODO: Add your API call here to send 'orderItems' to the backend
+        console.log("Submitting final order:", orderItems);
+        alert(`${orderItems.length} items submitted! (This is a placeholder)`);
+        
+        // Clear the list after submission
+        setOrderItems([]);
     };
 
     return (
@@ -574,7 +596,8 @@ const CreateOrderPage = () => {
                 </div>
                 {orderItems.length > 0 && (
                      <div className="table-footer">
-                        <button className="btn btn-green">
+                        {/* --- FIX: Added onClick handler to the submit button --- */}
+                        <button className="btn btn-green" onClick={handleSubmitOrder}>
                             Submit Final Order
                         </button>
                     </div>
@@ -584,16 +607,25 @@ const CreateOrderPage = () => {
     );
 };
 
+// --- CRITICAL FIX: Added MOCK_ORDERS definition to prevent app crash ---
+const MOCK_ORDERS = [
+    { id: 'ch-001', date: '2025-10-23', items: [{ name: 'Onion' }, { name: 'Tomato' }] },
+    { id: 'ch-002', date: '2025-10-22', items: [{ name: 'Milk' }, { name: 'Paneer' }, { name: 'Ghee' }] },
+    { id: 'ch-003', date: '2025-10-21', items: [{ name: 'Basmati Rice' }] }
+];
+
 // --- UPDATED OrderHistoryPage (Simplified Receipt) --- //
 const OrderHistoryPage = () => {
     const [orders, setOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
+    // --- FIX: Added state for the date filter ---
+    const [dateFilter, setDateFilter] = React.useState('');
     
     React.useEffect(() => {
         setLoading(true);
         // Simulating an API call to fetch order history
         const timer = setTimeout(() => {
-            setOrders(MOCK_ORDERS);
+            setOrders(MOCK_ORDERS); // This now works
             setLoading(false);
         }, 1000); // 1 second delay
         
@@ -623,48 +655,55 @@ const OrderHistoryPage = () => {
                      <h4 className="page-title" style={{fontSize: '1.25rem'}}>All Past Orders</h4>
                      <div className="history-filter">
                          <label htmlFor="date-filter" className="form-label" style={{marginBottom: 0}}>Filter by Date:</label>
-                         <input type="date" id="date-filter" className="form-input"/>
+                         {/* --- FIX: Connected input to state --- */}
+                         <input 
+                            type="date" 
+                            id="date-filter" 
+                            className="form-input"
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                         />
                      </div>
                  </div>
-                <div className="table-container">
-                    <table className="table">
-                        <thead className="table-header">
-                            <tr>
-                                <th>Date</th>
-                                <th>Items Ordered</th>
-                                <th>Total Items</th>
-                            </tr>
-                        </thead>
-                        <tbody className="table-body">
-                            {loading ? (
-                                <tr className="table-empty-row">
-                                    <td colSpan="3">Loading history...</td>
-                                </tr>
-                            ) : orders.length > 0 ? (
-                                orders.map((order) => (
-                                    <tr key={order.id}>
-                                        <td className="table-cell-name">{order.date}</td>
-                                        <td>{getItemSummary(order.items)}</td>
-                                        <td>{order.items.length} items</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr className="table-empty-row">
-                                    <td colSpan="3">No past orders found.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                 <div className="table-container">
+                     <table className="table">
+                         <thead className="table-header">
+                             <tr>
+                                 <th>Date</th>
+                                 <th>Items Ordered</th>
+                                 <th>Total Items</th>
+                             </tr>
+                         </thead>
+                         <tbody className="table-body">
+                             {loading ? (
+                                 <tr className="table-empty-row">
+                                     <td colSpan="3">Loading history...</td>
+                                 </tr>
+                             ) : orders.length > 0 ? (
+                                 orders.map((order) => (
+                                     <tr key={order.id}>
+                                         <td className="table-cell-name">{order.date}</td>
+                                         <td>{getItemSummary(order.items)}</td>
+                                         <td>{order.items.length} items</td>
+                                     </tr>
+                                 ))
+                             ) : (
+                                 <tr className="table-empty-row">
+                                     <td colSpan="3">No past orders found.</td>
+                                 </tr>
+                             )}
+                         </tbody>
+                     </table>
+                 </div>
+             </div>
         </div>
     );
 };
 
 
-// --- Main App Component --- //
+// --- Main App Component (Renamed to ChefDashboard for clarity) --- //
 
-export default function App() {
+export default function ChefDashboard() {
     const [activePage, setActivePage] = React.useState('create-order');
     const { user, logout } = useAuth(); 
 
