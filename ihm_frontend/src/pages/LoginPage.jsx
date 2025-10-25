@@ -34,13 +34,13 @@ export default function LoginPage() {
 
     // Your validation logic is unchanged and correct
     if (!userRole) return setError('Please select your role');
-    if (userRole === 'chef' && !kitchen) return setError('Please select your kitchen');
+    if (userRole === 'stall' && !kitchen) return setError('Please select your kitchen');
     if (!email || !password) return setError('Please fill in all fields');
 
     setLoading(true);
     try {
       const credentials = { role: userRole, email: email.trim(), password };
-      if (userRole === 'chef') credentials.kitchen = kitchen;
+      if (userRole === 'stall') credentials.kitchen = kitchen;
       const result = await login(credentials);
       if (!result.success) setError(result.error || 'Login failed. Please try again.');
     } catch (err) {
@@ -167,14 +167,14 @@ export default function LoginPage() {
             marginBottom: '24px'
           }}>
             {[
-              { id: 'chef', label: 'Chef', icon: ChefHat },
+              { id: 'stall', label: 'Chef', icon: ChefHat },
               { id: 'admin', label: 'Admin', icon: Shield },
               { id: 'vendor', label: 'Vendor', icon: Truck }
      ].map(({ id, label, icon: Icon }) => (
     <button
       key={id}
       type="button" // <-- Set type to avoid form submission
-      onClick={() => { setUserRole(id); if (id !== 'chef') setKitchen(''); setError(''); }}
+      onClick={() => { setUserRole(id); if (id !== 'stall') setKitchen(''); setError(''); }}
       style={{
         borderRadius: '14px',
         padding: '16px 0',
@@ -200,7 +200,7 @@ export default function LoginPage() {
           {/* 2. Replaced divs with a <form> and added onSubmit */}
           <form onSubmit={handleLogin}>
             {/* Chef Kitchen */}
-            {userRole === 'chef' && (
+            {userRole === 'stall' && (
               <div>
                 {/* 3. Added accessible label */}
                 <label htmlFor="kitchen-select" style={visuallyHiddenStyles}>Select Kitchen</label>

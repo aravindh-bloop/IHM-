@@ -24,16 +24,23 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  // Show dashboard based on user role
+  // Show dashboard based on user role (backend uses 'stall' for chef role)
   switch (user?.role) {
-    case 'chef':
+    case 'stall':
       return <ChefDashboard />;
     case 'admin':
       return <AdminDashboard />;
     case 'vendor':
       return <VendorDashboard />;
     default:
-      return <div>Unknown role</div>;
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center text-red-600">
+            <p>Unknown role: {user?.role}</p>
+            <p className="text-sm text-gray-600 mt-2">Please contact administrator</p>
+          </div>
+        </div>
+      );
   }
 }
 

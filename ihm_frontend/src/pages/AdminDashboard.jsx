@@ -315,21 +315,72 @@ const VendorStatusPage = () => {
 // Order History Page (Unchanged)
 const OrderHistoryPage = () => { /* ... history page jsx ... */ const [history, setHistory] = React.useState([]); const [loading, setLoading] = React.useState(false); return ( <> <div> <h3 className="page-title">Order History</h3> <p className="page-description">View past orders that have been processed.</p> </div> <div className="card"> <div className="table-container"> <table className="table"> <thead> <tr> <th>Order ID</th> <th>Date Verified</th> <th>Total Items</th> <th>Final Status</th> </tr> </thead> <tbody> {loading ? ( <tr className="table-empty-row"><td colSpan="4">Loading history...</td></tr> ) : history.length > 0 ? ( history.map((order) => ( <tr key={order.orderId}> <td>{order.orderId}</td> <td>{order.dateVerified}</td> <td>{order.itemCount}</td> <td>{order.finalStatus}</td> </tr> )) ) : ( <tr className="table-empty-row"><td colSpan="4">No order history found.</td></tr> )} </tbody> </table> </div> </div> </> );}
 
-// --- UPDATED: Create Account Page (Centering via inline style) ---
+// --- UPDATED: Create Account Page with API Integration ---
 const CreateAccountPage = () => {
-  const [role, setRole] = React.useState('Chef');
+  const [role, setRole] = React.useState('stall');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [stallName, setStallName] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
   const [successMsg, setSuccessMsg] = React.useState('');
+  const [errorMsg, setErrorMsg] = React.useState('');
 
-  const handleCreateAccount = (e) => {
+  const kitchens = ['BTK', 'ATK', 'QTK', 'CRAFT'];
+
+  const handleCreateAccount = async (e) => {
     e.preventDefault();
-    if (!email || !password) { alert('Please fill in all fields'); return; }
-    const newAccount = { role, email, password };
-    console.log("Creating dummy account:", newAccount);
-    setEmail(''); setPassword('');
-    setSuccessMsg(`✅ ${role} account for "${email}" would be created (dummy).`);
-    setTimeout(() => setSuccessMsg(''), 5000);
+    setSuccessMsg('');
+    setErrorMsg('');
+
+    if (!email || !password) {
+      setErrorMsg('Please fill in all required fields');
+      return;
+    }
+
+    if (role === 'stall' && !stallName) {
+      setErrorMsg('Please select a kitchen for the chef');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Import authAPI dynamically to avoid circular dependency
+      const { authAPI } = await import('../services/api');
+
+      const userData = {
+        email: email.trim(),
+        password: password,
+        role: role,
+        is_active: true,
+        is_superuser: false,
+        is_verified: true,
+      };
+
+      // Add stall_name only for stall owners
+      if (role === 'stall' && stallName) {
+        userData.stall_name = stallName;
+      }
+
+      const response = await authAPI.registerUser(userData);
+
+      setSuccessMsg(`✅ ${role === 'stall' ? 'Chef' : role.charAt(0).toUpperCase() + role.slice(1)} account created successfully for "${email}"${stallName ? ` at ${stallName} kitchen` : ''}`);
+      
+      // Reset form
+      setEmail('');
+      setPassword('');
+      setStallName('');
+      setRole('stall');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (error) {
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.detail || 'Failed to create account. Please try again.';
+      setErrorMsg(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -338,20 +389,101 @@ const CreateAccountPage = () => {
         <h3 className="page-title">Create Login Accounts</h3>
         <p className="page-description">Admin can create Chef and Vendor login credentials here.</p>
       </div>
-      {/* --- ADDED: Inline styles for centering --- */}
       <div
         className="card"
         style={{
-            maxWidth: '500px', // Limit width
-            marginLeft: 'auto', // Center horizontally
-            marginRight: 'auto' // Center horizontally
+            maxWidth: '500px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
          }}
       >
         <form onSubmit={handleCreateAccount}>
-          {/* ... form groups ... */}
-           <div className="form-group"> <label htmlFor="role-select">Role</label> <select id="role-select" value={role} onChange={(e) => setRole(e.target.value)} > <option value="Chef">Chef</option> <option value="Vendor">Vendor</option> </select> </div> <div className="form-group"> <label htmlFor="email-input">Email ID</label> <input id="email-input" type="email" value={email} placeholder="Enter email ID" onChange={(e) => setEmail(e.target.value)} required /> </div> <div className="form-group"> <label htmlFor="password-input">Password</label> <input id="password-input" type="password" value={password} placeholder="Enter password" onChange={(e) => setPassword(e.target.value)} required minLength="3" /> </div>
-          <button className="btn create-account-btn" type="submit">Create Account</button> {/* Added class */}
+          <div className="form-group">
+            <label htmlFor="role-select">Role *</label>
+            <select 
+              id="role-select" 
+              value={role} 
+              onChange={(e) => {
+                setRole(e.target.value);
+                setStallName(''); // Reset stall name when role changes
+              }}
+              disabled={loading}
+            >
+              <option value="stall">Chef</option>
+              <option value="vendor">Vendor</option>
+            </select>
+          </div>
+
+          {role === 'stall' && (
+            <div className="form-group">
+              <label htmlFor="kitchen-select">Kitchen *</label>
+              <select
+                id="kitchen-select"
+                value={stallName}
+                onChange={(e) => setStallName(e.target.value)}
+                disabled={loading}
+                required
+              >
+                <option value="">Select Kitchen</option>
+                {kitchens.map(kitchen => (
+                  <option key={kitchen} value={kitchen}>{kitchen}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="email-input">Email ID *</label>
+            <input 
+              id="email-input" 
+              type="email" 
+              value={email} 
+              placeholder="Enter email ID" 
+              onChange={(e) => setEmail(e.target.value)} 
+              disabled={loading}
+              required 
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="password-input">Password *</label>
+            <input 
+              id="password-input" 
+              type="password" 
+              value={password} 
+              placeholder="Enter password (min 3 characters)" 
+              onChange={(e) => setPassword(e.target.value)} 
+              disabled={loading}
+              required 
+              minLength="3" 
+            />
+          </div>
+
+          <button 
+            className="btn create-account-btn" 
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create Account'}
+          </button>
         </form>
+
+        {errorMsg && (
+          <p style={{
+            color: 'var(--red-dark)',
+            backgroundColor: '#fee2e2',
+            border: '1px solid var(--red)',
+            padding: '0.75rem 1rem',
+            borderRadius: '0.375rem',
+            fontWeight: '500',
+            marginTop: '1.5rem',
+            textAlign: 'center',
+            fontSize: '0.9rem'
+          }}>
+            {errorMsg}
+          </p>
+        )}
+
         {successMsg && <p className="success-msg">{successMsg}</p>}
       </div>
     </>

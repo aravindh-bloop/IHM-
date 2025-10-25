@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { stallAPI } from '../services/api';
 
 // --- MOCK DATA --- //
 const AVAILABLE_ITEMS = [
@@ -418,14 +419,33 @@ const Header = ({ kitchen, onLogout }) => (
 );
 
 const CreateOrderPage = () => {
-    // ... (This component is unchanged)
     const [orderItems, setOrderItems] = React.useState([]);
     const [searchQuery, setSearchQuery] = React.useState('');
     const [itemName, setItemName] = React.useState('');
-    const [quantity, setQuantity] =React.useState('');
+    const [quantity, setQuantity] = React.useState('');
     const [unit, setUnit] = React.useState('kg');
     const [isManualEntry, setIsManualEntry] = React.useState(false);
     const [itemInputValue, setItemInputValue] = React.useState('');
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [existingRequests, setExistingRequests] = React.useState([]);
+    const [isLoadingRequests, setIsLoadingRequests] = React.useState(true);
+
+    // Load existing requests on mount
+    React.useEffect(() => {
+        loadExistingRequests();
+    }, []);
+
+    const loadExistingRequests = async () => {
+        try {
+            setIsLoadingRequests(true);
+            const response = await stallAPI.getRequests();
+            setExistingRequests(response.requests || []);
+        } catch (error) {
+            console.error('Error loading requests:', error);
+        } finally {
+            setIsLoadingRequests(false);
+        }
+    };
 
     const filteredItems = searchQuery 
         ? AVAILABLE_ITEMS.filter(item => item.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -433,7 +453,7 @@ const CreateOrderPage = () => {
 
     const handleAddItem = () => {
         if (itemName && quantity) {
-            const newItem = { name: itemName, quantity, unit };
+            const newItem = { name: itemName, quantity: parseInt(quantity), unit };
             setOrderItems([...orderItems, newItem]);
             // Reset fields
             setItemName('');
@@ -456,31 +476,68 @@ const CreateOrderPage = () => {
         setOrderItems(orderItems.filter((_, index) => index !== indexToRemove));
     };
     
-    // --- FIX: This logic is updated to prevent adding items without selection ---
     const handleInputChange = (e) => {
         const value = e.target.value;
-        setItemInputValue(value); // Always update the visible input
+        setItemInputValue(value);
 
         if(isManualEntry){
-            setItemName(value); // If manual, update the "real" name
+            setItemName(value);
         } else {
-            setSearchQuery(value); // If searching, update the query
-            setItemName(''); // <-- FIX: Clear name to force a selection from dropdown
+            setSearchQuery(value);
+            setItemName('');
         }
     };
 
-    // --- FIX: Added a handler for the submit button ---
-    const handleSubmitOrder = () => {
+    const handleSubmitOrder = async () => {
         if (orderItems.length === 0) {
             alert("Please add items to your order before submitting.");
             return;
         }
-        // TODO: Add your API call here to send 'orderItems' to the backend
-        console.log("Submitting final order:", orderItems);
-        alert(`${orderItems.length} items submitted! (This is a placeholder)`);
-        
-        // Clear the list after submission
-        setOrderItems([]);
+
+        try {
+            setIsSubmitting(true);
+            
+            // Transform orderItems to match API schema
+            const requestData = {
+                items: orderItems.map(item => ({
+                    item_name: item.name,
+                    quantity: parseInt(item.quantity),
+                    unit: item.unit
+                }))
+            };
+
+            const response = await stallAPI.createRequest(requestData);
+            
+            alert(`Success! ${orderItems.length} items submitted to ${response.stall_name}`);
+            console.log("Order submitted successfully:", response);
+            
+            // Clear the list after successful submission
+            setOrderItems([]);
+            
+            // Reload existing requests
+            await loadExistingRequests();
+            
+        } catch (error) {
+            console.error("Error submitting order:", error);
+            alert(`Error submitting order: ${error.response?.data?.detail || error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteRequest = async (requestId, itemName) => {
+        if (!confirm(`Are you sure you want to delete "${itemName}" request?`)) {
+            return;
+        }
+
+        try {
+            await stallAPI.deleteRequest(requestId);
+            alert('Request deleted successfully');
+            await loadExistingRequests();
+        } catch (error) {
+            console.error('Error deleting request:', error);
+            alert(`Error deleting request: ${error.response?.data?.detail || error.message}`);
+        }
     };
 
     return (
@@ -596,105 +653,199 @@ const CreateOrderPage = () => {
                 </div>
                 {orderItems.length > 0 && (
                      <div className="table-footer">
-                        {/* --- FIX: Added onClick handler to the submit button --- */}
-                        <button className="btn btn-green" onClick={handleSubmitOrder}>
-                            Submit Final Order
+                        <button 
+                            className="btn btn-green" 
+                            onClick={handleSubmitOrder}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? 'Submitting...' : 'Submit Final Order'}
                         </button>
                     </div>
                 )}
+            </div>
+
+            {/* Existing Requests Section */}
+            <div className="card">
+                <h4 className="page-title" style={{fontSize: '1.25rem', marginBottom: '1rem'}}>
+                    Existing Requests
+                </h4>
+                <div className="table-container">
+                    <table className="table">
+                        <thead className="table-header">
+                            <tr>
+                                <th>Item Name</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th className="table-cell-action">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="table-body">
+                            {isLoadingRequests ? (
+                                <tr className="table-empty-row">
+                                    <td colSpan="6">Loading requests...</td>
+                                </tr>
+                            ) : existingRequests.length > 0 ? (
+                                existingRequests.map((request) => (
+                                    <tr key={request.id}>
+                                        <td className="table-cell-name">{request.item_name}</td>
+                                        <td>{request.quantity}</td>
+                                        <td>{request.unit}</td>
+                                        <td>
+                                            <span className={`status-badge status-${request.status.toLowerCase()}`}>
+                                                {request.status}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(request.created_at).toLocaleDateString()}</td>
+                                        <td className="table-cell-action">
+                                            {request.status === 'pending' && (
+                                                <button 
+                                                    onClick={() => handleDeleteRequest(request.id, request.item_name)} 
+                                                    className="btn-remove"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr className="table-empty-row">
+                                    <td colSpan="6">No existing requests found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
 };
 
-// --- CRITICAL FIX: Added MOCK_ORDERS definition to prevent app crash ---
-const MOCK_ORDERS = [
-    { id: 'ch-001', date: '2025-10-23', items: [{ name: 'Onion' }, { name: 'Tomato' }] },
-    { id: 'ch-002', date: '2025-10-22', items: [{ name: 'Milk' }, { name: 'Paneer' }, { name: 'Ghee' }] },
-    { id: 'ch-003', date: '2025-10-21', items: [{ name: 'Basmati Rice' }] }
-];
-
-// --- UPDATED OrderHistoryPage (Simplified Receipt) --- //
+// --- OrderHistoryPage - Shows all stall requests --- //
 const OrderHistoryPage = () => {
-    const [orders, setOrders] = React.useState([]);
+    const [requests, setRequests] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
-    // --- FIX: Added state for the date filter ---
     const [dateFilter, setDateFilter] = React.useState('');
+    const [statusFilter, setStatusFilter] = React.useState('all');
     
     React.useEffect(() => {
-        setLoading(true);
-        // Simulating an API call to fetch order history
-        const timer = setTimeout(() => {
-            setOrders(MOCK_ORDERS); // This now works
-            setLoading(false);
-        }, 1000); // 1 second delay
-        
-        return () => clearTimeout(timer); // Cleanup
+        loadOrderHistory();
     }, []);
 
-    // Helper function to show a summary of items
-    const getItemSummary = (items) => {
-        if (!items || items.length === 0) return 'No items';
-        
-        const firstTwo = items.slice(0, 2).map(item => item.name).join(', ');
-        
-        if (items.length > 2) {
-            return `${firstTwo} + ${items.length - 2} more`;
+    const loadOrderHistory = async () => {
+        try {
+            setLoading(true);
+            const response = await stallAPI.getRequests();
+            setRequests(response.requests || []);
+        } catch (error) {
+            console.error('Error loading order history:', error);
+            alert(`Error loading history: ${error.response?.data?.detail || error.message}`);
+        } finally {
+            setLoading(false);
         }
-        return firstTwo;
     };
+
+    // Filter requests based on date and status
+    const filteredRequests = requests.filter(request => {
+        const matchesDate = !dateFilter || 
+            new Date(request.created_at).toISOString().split('T')[0] === dateFilter;
+        const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+        return matchesDate && matchesStatus;
+    });
 
     return (
         <div className="page-section">
             <div>
                 <h3 className="page-title">Order History</h3>
-                <p className="page-description">A record of your submitted orders for the current month.</p>
+                <p className="page-description">A record of all your submitted raw material requests.</p>
             </div>
              <div className="card">
                  <div className="history-header">
-                     <h4 className="page-title" style={{fontSize: '1.25rem'}}>All Past Orders</h4>
+                     <h4 className="page-title" style={{fontSize: '1.25rem'}}>All Past Requests</h4>
                      <div className="history-filter">
-                         <label htmlFor="date-filter" className="form-label" style={{marginBottom: 0}}>Filter by Date:</label>
-                         {/* --- FIX: Connected input to state --- */}
+                         <label htmlFor="status-filter" className="form-label" style={{marginBottom: 0, marginRight: '0.5rem'}}>Status:</label>
+                         <select 
+                            id="status-filter" 
+                            className="form-select"
+                            style={{marginRight: '1rem', width: 'auto'}}
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                         >
+                             <option value="all">All</option>
+                             <option value="pending">Pending</option>
+                             <option value="approved">Approved</option>
+                             <option value="rejected">Rejected</option>
+                             <option value="completed">Completed</option>
+                         </select>
+                         <label htmlFor="date-filter" className="form-label" style={{marginBottom: 0, marginRight: '0.5rem'}}>Date:</label>
                          <input 
                             type="date" 
                             id="date-filter" 
                             className="form-input"
+                            style={{width: 'auto'}}
                             value={dateFilter}
                             onChange={(e) => setDateFilter(e.target.value)}
                          />
+                         {dateFilter && (
+                             <button 
+                                onClick={() => setDateFilter('')} 
+                                className="btn-manual"
+                                style={{marginLeft: '0.5rem'}}
+                             >
+                                 Clear
+                             </button>
+                         )}
                      </div>
                  </div>
                  <div className="table-container">
                      <table className="table">
                          <thead className="table-header">
                              <tr>
-                                 <th>Date</th>
-                                 <th>Items Ordered</th>
-                                 <th>Total Items</th>
+                                 <th>Item Name</th>
+                                 <th>Quantity</th>
+                                 <th>Unit</th>
+                                 <th>Status</th>
+                                 <th>Date Requested</th>
                              </tr>
                          </thead>
                          <tbody className="table-body">
                              {loading ? (
                                  <tr className="table-empty-row">
-                                     <td colSpan="3">Loading history...</td>
+                                     <td colSpan="5">Loading history...</td>
                                  </tr>
-                             ) : orders.length > 0 ? (
-                                 orders.map((order) => (
-                                     <tr key={order.id}>
-                                         <td className="table-cell-name">{order.date}</td>
-                                         <td>{getItemSummary(order.items)}</td>
-                                         <td>{order.items.length} items</td>
+                             ) : filteredRequests.length > 0 ? (
+                                 filteredRequests.map((request) => (
+                                     <tr key={request.id}>
+                                         <td className="table-cell-name">{request.item_name}</td>
+                                         <td>{request.quantity}</td>
+                                         <td>{request.unit}</td>
+                                         <td>
+                                             <span className={`status-badge status-${request.status.toLowerCase()}`}>
+                                                 {request.status}
+                                             </span>
+                                         </td>
+                                         <td>{new Date(request.created_at).toLocaleString()}</td>
                                      </tr>
                                  ))
                              ) : (
                                  <tr className="table-empty-row">
-                                     <td colSpan="3">No past orders found.</td>
+                                     <td colSpan="5">
+                                         {dateFilter || statusFilter !== 'all' 
+                                             ? 'No requests found matching your filters.' 
+                                             : 'No past requests found.'}
+                                     </td>
                                  </tr>
                              )}
                          </tbody>
                      </table>
                  </div>
+                 {!loading && filteredRequests.length > 0 && (
+                     <div style={{padding: '1rem', textAlign: 'right', color: 'var(--text-muted)'}}>
+                         Showing {filteredRequests.length} of {requests.length} total requests
+                     </div>
+                 )}
              </div>
         </div>
     );

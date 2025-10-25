@@ -32,7 +32,8 @@ async def handle_request(
         request = RawMaterialRequests(
             stall_id=stall.id,
             item_name=item.item_name,
-            quantity=item.quantity
+            quantity=item.quantity,
+            unit = item.unit
         )
         db.add(request)
         created_requests.append({
@@ -77,6 +78,7 @@ async def get_requests(
                 "item_name": req.item_name,
                 "quantity": req.quantity,
                 "status": req.status,
+                "unit": req.unit,
                 "created_at": req.created_at
             }
             for req in requests
@@ -170,6 +172,7 @@ async def update_request(
         "id": str(request_to_update.id),
         "item_name": request_to_update.item_name,
         "quantity": request_to_update.quantity,
+        "unit": request_to_update.unit,
         "status": request_to_update.status,
         "created_at": request_to_update.created_at.isoformat() if request_to_update.created_at else None
     }

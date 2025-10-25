@@ -163,6 +163,33 @@ export const vendorAPI = {
   },
 };
 
+// ==================== STALL APIs ====================
+export const stallAPI = {
+  // Create new raw material request
+  createRequest: async (requestData) => {
+    const response = await apiClient.post('/stall/request', requestData);
+    return response.data;
+  },
+
+  // Get all raw material requests for the stall
+  getRequests: async () => {
+    const response = await apiClient.get('/stall/request');
+    return response.data;
+  },
+
+  // Update a specific request
+  updateRequest: async (requestId, updateData) => {
+    const response = await apiClient.patch(`/stall/request/${requestId}`, updateData);
+    return response.data;
+  },
+
+  // Delete a specific request
+  deleteRequest: async (requestId) => {
+    const response = await apiClient.delete(`/stall/request/${requestId}`);
+    return response.data;
+  },
+};
+
 // ==================== COMMON APIs ====================
 export const commonAPI = {
   // Get all kitchens
@@ -180,6 +207,42 @@ export const commonAPI = {
   // Get items master list (if you have predefined items)
   getItems: async () => {
     const response = await apiClient.get('/common/items');
+    return response.data;
+  },
+};
+
+// ==================== AUTH APIs ====================
+export const authAPI = {
+  // Login with email and password
+  login: async (credentials) => {
+    // FastAPI Users expects form data for login
+    const formData = new FormData();
+    formData.append('username', credentials.email);
+    formData.append('password', credentials.password);
+
+    const response = await apiClient.post('/auth/cookie/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+    return response.data;
+  },
+
+  // Logout
+  logout: async () => {
+    const response = await apiClient.post('/auth/cookie/logout');
+    return response.data;
+  },
+
+  // Get current user info
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/users/me');
+    return response.data;
+  },
+
+  // Register new user (Admin only)
+  registerUser: async (userData) => {
+    const response = await apiClient.post('/auth/register', userData);
     return response.data;
   },
 };
