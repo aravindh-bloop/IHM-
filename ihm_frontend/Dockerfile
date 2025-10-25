@@ -6,8 +6,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies and manually add musl rollup package
+RUN npm ci --legacy-peer-deps || npm install && \
+    npm install --no-save @rollup/rollup-linux-x64-musl
 
 # Copy source code
 COPY . .
@@ -26,8 +27,10 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies - use npm ci with legacy peer deps to avoid optional dependency issues
+# Then manually install the musl rollup package
+RUN npm ci --legacy-peer-deps || npm install && \
+    npm install --no-save @rollup/rollup-linux-x64-musl
 
 # Copy source code
 COPY . .
