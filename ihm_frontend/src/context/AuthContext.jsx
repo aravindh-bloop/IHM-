@@ -74,6 +74,8 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       localStorage.removeItem('user');
+      // Force reload to clear any cached state
+      window.location.reload();
     }
   };
   

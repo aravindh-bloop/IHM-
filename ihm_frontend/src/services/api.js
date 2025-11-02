@@ -17,9 +17,15 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Cookie expired or invalid
-      localStorage.removeItem('user');
-      window.location.href = '/';
+      // Only redirect if it's not from the initial auth check or logout
+      const isAuthCheck = error.config?.url?.includes('/users/me');
+      const isLogout = error.config?.url?.includes('/auth/cookie/logout');
+      
+      if (!isAuthCheck && !isLogout) {
+        // Cookie expired or invalid during an API call
+        localStorage.removeItem('user');
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }
