@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from ihm_backend.services.redis.lifespan import init_redis, shutdown_redis
 from ihm_backend.settings import settings
 from ihm_backend.tkq import broker
+from ihm_backend.web.startup import create_superuser_from_env
 
 
 def _setup_db(app: FastAPI) -> None:  # pragma: no cover
@@ -28,6 +29,16 @@ def _setup_db(app: FastAPI) -> None:  # pragma: no cover
     app.state.db_session_factory = session_factory
 
 
+async def _create_initial_data(app: FastAPI) -> None:  # pragma: no cover
+    """
+    Create initial data like superuser on startup.
+    
+    :param app: fastAPI application.
+    """
+    async with app.state.db_session_factory() as session:
+        await create_superuser_from_env(session)
+
+
 @asynccontextmanager
 async def lifespan_setup(
     app: FastAPI,
@@ -47,6 +58,10 @@ async def lifespan_setup(
         await broker.startup()
     _setup_db(app)
     init_redis(app)
+    
+    # Create initial data (superuser from env)
+    await _create_initial_data(app)
+    
     app.middleware_stack = app.build_middleware_stack()
 
     yield
