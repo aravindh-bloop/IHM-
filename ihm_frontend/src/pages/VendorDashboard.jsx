@@ -1,35 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-
-// --- MOCK DATA FOR VENDOR (Simplified: Only Verified Orders) --- //
-const MOCK_INCOMING_ORDERS = [
-    {
-        orderId: 'ORD-104',
-        date: '2025-10-22',
-        status: 'Verified', // Needs Vendor feedback
-        items: [
-            { id: 1, name: 'Onion', quantity: 57, unit: 'kg', breakdown: { BTK: 20, ATK: 15, QTK: 10, CRAFT: 12 } },
-            { id: 2, name: 'Tomato', quantity: 40, unit: 'kg', breakdown: { BTK: 15, ATK: 10, QTK: 10, CRAFT: 5 } },
-            { id: 3, name: 'Basmati Rice', quantity: 50, unit: 'kg', breakdown: { BTK: 20, ATK: 15, QTK: 10, CRAFT: 5 } }
-        ]
-    },
-     {
-        orderId: 'ORD-103',
-        date: '2025-10-21',
-        status: 'Verified', // Needs Vendor feedback
-        items: [
-             { id: 4, name: 'Cooking Oil', quantity: 15, unit: 'liters', breakdown: {ATK: 10, CRAFT: 5} },
-             { id: 5, name: 'Wheat Flour', quantity: 100, unit: 'kg', breakdown: {BTK: 50, QTK: 50} },
-        ]
-    },
-];
-
-const MOCK_SUPPLY_HISTORY = [
-    { id: 'ORD-101', date: '2025-10-21', itemCount: 12, status: 'Supplied' },
-    { id: 'ORD-100', date: '2025-10-19', itemCount: 8, status: 'Not Supplied' },
-    { id: 'ORD-099', date: '2025-10-18', itemCount: 20, status: 'Supplied' },
-];
-
+import { vendorAPI } from '../services/api';
 
 // --- STYLES COMPONENT (Simplified Statuses for Vendor) --- //
 const DashboardStyles = () => (
@@ -324,15 +295,15 @@ const DashboardStyles = () => (
       text-transform: capitalize;
       white-space: nowrap;
     }
-    .status-verified { /* Incoming order for vendor */
+    .status-pending { /* Incoming order for vendor */
       background-color: #dbeafe; /* Blue */
       color: #1e40af;
     }
-    .status-supplied { /* For history page - Green */
+    .status-completed { /* For history page - Green */
       background-color: #dcfce7; /* Green */
       color: #166534;
     }
-    .status-not-supplied { /* For history page - Red */
+    .status-cancelled { /* For history page - Red */
       background-color: #fee2e2; /* Light Red */
       color: #991b1b; /* Dark Red */
     }
@@ -400,69 +371,45 @@ const StatusBadge = ({ status }) => {
 // Component to render individual order rows with feedback inputs
 const OrderFeedbackRow = ({ order, onFeedbackChange, onSubmitFeedback }) => {
     
-    // Helper to format kitchen breakdown string
-    const formatBreakdown = (breakdown) => {
-        return Object.entries(breakdown)
-                     .map(([kitchen, qty]) => `${kitchen}: ${qty}`)
-                     .join(', ');
-    };
-
     return (
          <tbody className="table-body">
             {/* Header Row for the Order */}
             <tr style={{backgroundColor: '#f9fafb', borderTop: '2px solid var(--border-color)'}}>
-                 <td colSpan="3">
+                 <td colSpan="2">
                     <span className="table-cell-name">Order ID: {order.orderId}</span> ({order.date})
                  </td>
-                 <td><StatusBadge status={order.status} /></td> {/* Status Column */}
-                 <td> {/* Action Column */}
-                    {/* The Submit button is now outside the row, at the end of the order */}
-                 </td>
+                 <td><StatusBadge status={order.status} /></td>
+                 <td colSpan="2"></td>
             </tr>
             {/* Item Rows for the Order */}
-            {order.items.map((item, ) => (
+            {order.items.map((item) => (
                 <tr key={item.id}>
                     <td className="table-cell-name">{item.name}</td>
                     <td>{item.quantity} {item.unit}</td>
-                    <td className="item-breakdown">{formatBreakdown(item.breakdown)}</td>
-                    <td colSpan="2"> {/* Feedback column spans Status and Actions */}
-                        <div>
+                    <td></td>
+                    <td colSpan="2">
+                        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                            <label style={{fontWeight: '500', whiteSpace: 'nowrap'}}>Delivered:</label>
                             <input 
-                                type="checkbox" 
-                                id={`avail-${order.orderId}-${item.id}`} 
-                                className="availability-check"
-                                checked={onFeedbackChange.getFeedback(order.orderId, item.id)?.available ?? true} // Default to available
-                                onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'available', e.target.checked)}
-                            />
-                            <label htmlFor={`avail-${order.orderId}-${item.id}`} className="availability-label">Available</label>
-                            <input 
-                                type="text" 
-                                placeholder="Add price/notes..." 
+                                type="number" 
+                                min="0"
+                                max={item.quantity}
+                                placeholder="Quantity delivered" 
                                 className="feedback-input" 
-                                style={{width: 'calc(100% - 110px)', display: 'inline-block'}} // Adjusted width
-                                value={onFeedbackChange.getFeedback(order.orderId, item.id)?.notes ?? ''}
-                                onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'notes', e.target.value)}
+                                style={{width: '150px', marginTop: 0}}
+                                value={onFeedbackChange.getFeedback(order.orderId, item.id)?.deliveredQty ?? item.quantity}
+                                onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'deliveredQty', parseInt(e.target.value) || 0)}
                             />
+                            <span style={{color: 'var(--text-muted)'}}>{item.unit}</span>
                         </div>
                     </td>
                 </tr>
             ))}
-            {/* Row for Total Price and Submit button */}
+            {/* Row for Submit button */}
              <tr style={{borderTop: '1px solid var(--border-color)'}}>
-                 <td colSpan="3" style={{padding: '1rem'}}>
-                    <label style={{fontWeight: '500', color: 'var(--text-dark)', marginRight: '0.5rem'}}>Total Price:</label>
-                    <input 
-                        type="text" 
-                        placeholder="Enter total price..." 
-                        className="feedback-input" 
-                        style={{width: '200px', display: 'inline-block', marginTop: 0}}
-                        value={onFeedbackChange.getOrderTotalPrice(order.orderId)}
-                        onChange={(e) => onFeedbackChange.setOrderTotalPrice(order.orderId, e.target.value)}
-                    />
-                 </td>
-                 <td colSpan="2" style={{textAlign: 'right', padding: '1rem'}}>
+                 <td colSpan="5" style={{textAlign: 'right', padding: '1rem'}}>
                     <button onClick={() => onSubmitFeedback(order.orderId)} className="btn btn-purple">
-                        <SendIcon /> Send Status to Admin
+                        <SendIcon /> Update Order Status
                     </button>
                  </td>
              </tr>
@@ -474,7 +421,40 @@ const OrderFeedbackRow = ({ order, onFeedbackChange, onSubmitFeedback }) => {
 const IncomingOrdersPage = () => {
     const [orders, setOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
     const [feedback, setFeedback] = React.useState({}); // State to hold feedback
+
+    React.useEffect(() => {
+        fetchIncomingOrders();
+    }, []);
+
+    const fetchIncomingOrders = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await vendorAPI.getIncomingOrders();
+            // Transform API response to match component structure
+            const transformedOrders = response.map(order => ({
+                orderId: order.order_id,
+                date: new Date(order.date).toLocaleDateString(),
+                status: order.status,
+                totalItems: order.total_items,
+                items: order.items.map(item => ({
+                    id: item.item_id,
+                    name: item.item_name,
+                    quantity: item.total_quantity,
+                    unit: 'kg', // You may need to add unit to backend
+                    deliveredQty: item.delivered_quantity || 0
+                }))
+            }));
+            setOrders(transformedOrders);
+        } catch (err) {
+            console.error('Error fetching incoming orders:', err);
+            setError('Failed to load incoming orders. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     React.useEffect(() => {
         // TODO: Add real API call: vendorAPI.getIncomingOrders()
@@ -497,48 +477,39 @@ const IncomingOrdersPage = () => {
             [orderId]: {
                 ...prev[orderId],
                 [itemId]: {
-                    ...(prev[orderId]?.[itemId] ?? { available: true }), // Default available=true
+                    ...(prev[orderId]?.[itemId] ?? {}),
                     [key]: value
                 }
             }
         }));
     };
-
-    const setOrderTotalPrice = (orderId, totalPrice) => {
-        setFeedback(prev => ({
-            ...prev,
-            [orderId]: {
-                ...prev[orderId],
-                totalPrice: totalPrice
-            }
-        }));
-    };
-
-    const getOrderTotalPrice = (orderId) => {
-        return feedback[orderId]?.totalPrice ?? '';
-    };
     // --------------------------------
 
     // Placeholder action
-    const handleSubmitFeedback = (orderId) => {
-        const orderFeedback = feedback[orderId] || {};
-        // Add default availability if vendor didn't touch the checkbox
-        const order = orders.find(o => o.orderId === orderId);
-        const completeFeedback = order.items.map(item => ({
-            itemId: item.id,
-            available: orderFeedback[item.id]?.available ?? true, // Default to true if not set
-            notes: orderFeedback[item.id]?.notes ?? ''
-        }));
+    const handleSubmitFeedback = async (orderId) => {
+        try {
+            const orderFeedback = feedback[orderId] || {};
+            const order = orders.find(o => o.orderId === orderId);
+            
+            // Build items array for API
+            const items = order.items.map(item => ({
+                item_id: item.id,
+                delivered_quantity: orderFeedback[item.id]?.deliveredQty ?? item.quantity
+            }));
 
-        const totalPrice = orderFeedback.totalPrice ?? '';
+            // Send to API
+            await vendorAPI.updateOrderStatus(orderId, {
+                items: items,
+                mark_as_completed: true
+            });
 
-        console.log("Submitting feedback for Order:", orderId, {
-            items: completeFeedback,
-            totalPrice: totalPrice
-        }); 
-        alert(`Sending status to Admin for Order ${orderId}\nTotal Price: ${totalPrice || 'Not provided'}`);
-        // TODO: Send 'completeFeedback' array and 'totalPrice' to backend API
-        // On success, maybe remove the order from this list or refetch
+            alert(`Status sent to Admin successfully for Order ${orderId}`);
+            // Refresh the orders list
+            fetchIncomingOrders();
+        } catch (err) {
+            console.error('Error submitting feedback:', err);
+            alert('Failed to submit feedback. Please try again.');
+        }
     };
 
     return (
@@ -551,16 +522,22 @@ const IncomingOrdersPage = () => {
             <div className="card">
                 {loading ? (
                     <div className="table-empty-row" style={{border: 'none'}}>Loading incoming orders...</div>
+                ) : error ? (
+                    <div className="table-empty-row" style={{border: 'none', color: 'var(--red)'}}>
+                        {error}
+                        <button onClick={fetchIncomingOrders} className="btn" style={{marginTop: '1rem'}}>
+                            Retry
+                        </button>
+                    </div>
                 ) : orders.length > 0 ? (
                     <div className="table-container">
                         <table className="table">
                             <thead className="table-header">
                                 <tr>
                                     <th>Item</th>
-                                    <th>Total Qty</th>
-                                    <th>Kitchen Breakdown</th>
-                                    <th>Status</th> {/* Keep status column for context */}
-                                    <th>Feedback (Availability/Notes)</th> {/* Changed Header */}
+                                    <th>Total Qty Requested</th>
+                                    <th>Status</th>
+                                    <th colSpan="2">Delivered Quantity</th>
                                 </tr>
                             </thead>
                             {/* Render each order using the OrderFeedbackRow component */}
@@ -570,9 +547,7 @@ const IncomingOrdersPage = () => {
                                     order={order} 
                                     onFeedbackChange={{ 
                                         getFeedback, 
-                                        setFeedback: setFeedbackItem,
-                                        getOrderTotalPrice,
-                                        setOrderTotalPrice
+                                        setFeedback: setFeedbackItem
                                     }}
                                     onSubmitFeedback={handleSubmitFeedback}
                                 />
@@ -590,40 +565,48 @@ const IncomingOrdersPage = () => {
 };
 
 const SupplyHistoryPage = () => {
-    // ... (This component remains the same as before)
     const [orders, setOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
     
     React.useEffect(() => {
-        // TODO: Add real API call: vendorAPI.getSupplyHistory()
-        const timer = setTimeout(() => {
-            setOrders(MOCK_SUPPLY_HISTORY);
-            setLoading(false);
-        }, 500); 
-        
-        return () => clearTimeout(timer);
+        fetchSupplyHistory();
     }, []);
+
+    const fetchSupplyHistory = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await vendorAPI.getSupplyHistory();
+            // Transform API response
+            const transformedHistory = response.map(order => ({
+                id: order.order_id,
+                date: new Date(order.date).toLocaleDateString(),
+                itemCount: order.item_count,
+                status: order.status
+            }));
+            setOrders(transformedHistory);
+        } catch (err) {
+            console.error('Error fetching supply history:', err);
+            setError('Failed to load supply history. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="page-section">
             <div>
                 <h3 className="page-title">Supply History</h3>
-                <p className="page-description">Record of all orders marked as supplied.</p>
+                <p className="page-description">Record of all completed and cancelled orders.</p>
             </div>
              <div className="card">
-                 <div className="history-header">
-                     <h4 className="page-title" style={{fontSize: '1.25rem'}}>Completed Supplies</h4>
-                     <div className="history-filter">
-                         <label htmlFor="date-filter" className="form-label" style={{marginBottom: 0}}>Filter by Date:</label>
-                         <input type="date" id="date-filter" className="form-input"/>
-                     </div>
-                 </div>
                 <div className="table-container">
                     <table className="table">
                         <thead className="table-header">
                             <tr>
                                 <th>Order ID</th>
-                                <th>Date Supplied</th>
+                                <th>Date</th>
                                 <th>Total Items</th>
                                 <th>Status</th>
                             </tr>
@@ -633,7 +616,16 @@ const SupplyHistoryPage = () => {
                                 <tr className="table-empty-row">
                                     <td colSpan="4">Loading history...</td>
                                 </tr>
-                            ) : orders.length > 0 ? (
+                            ) : error ? (
+                               <tr className="table-empty-row">
+                                   <td colSpan="4" style={{color: 'var(--red)'}}>
+                                       {error}
+                                       <button onClick={fetchSupplyHistory} className="btn" style={{marginTop: '1rem'}}>
+                                           Retry
+                                       </button>
+                                   </td>
+                               </tr>
+                           ) : orders.length > 0 ? (
                                 orders.map((order) => (
                                     <tr key={order.id}>
                                         <td className="table-cell-name">{order.id}</td>

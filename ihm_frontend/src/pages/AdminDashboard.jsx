@@ -151,18 +151,69 @@ const Header = ({ onLogout }) => ( /* ... header jsx ... */ <header className="h
 
 // --- UPDATED: View Orders Page (Removed Status Column) ---
 const ViewOrdersPage = () => {
-  const [orders, setOrders] = React.useState([
-     { orderId: 'ORD-001', itemName: 'Onion', quantity: '20 kg', /* status: 'Pending' */ },
-     { orderId: 'ORD-001', itemName: 'Tomato', quantity: '15 kg', /* status: 'Pending' */ },
-     { orderId: 'ORD-002', itemName: 'Milk', quantity: '10 liters', /* status: 'Pending' */ },
-  ]);
-  const [loading, setLoading] = React.useState(false);
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const [isVerified, setIsVerified] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState('');
 
-  const handleSendToVendor = () => {
-      console.log("Sending verified order to vendor:", orders);
-      alert("Order sent to vendor! (Dummy action)");
+  React.useEffect(() => {
+    fetchPendingOrders();
+  }, []);
+
+  const fetchPendingOrders = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { adminAPI } = await import('../services/api');
+      const data = await adminAPI.getPendingOrders();
+      
+      // Transform merged_items to display format
+      const transformedOrders = data.merged_items?.map(item => ({
+        itemName: item.item_name,
+        quantity: `${item.total_quantity} ${item.unit}`,
+        total_quantity: item.total_quantity,
+        unit: item.unit
+      })) || [];
+      
+      setOrders(transformedOrders);
+    } catch (err) {
+      console.error('Error fetching pending orders:', err);
+      setError('Failed to load pending orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendToVendor = async () => {
+    setError('');
+    setSuccess('');
+    
+    try {
+      const { adminAPI } = await import('../services/api');
+      
+      // Prepare order data for compilation
+      const orderData = {
+        items: orders.map(order => ({
+          item_name: order.itemName,
+          total_quantity: order.total_quantity,
+          unit: order.unit
+        }))
+      };
+      
+      const response = await adminAPI.compileOrder(orderData);
+      setSuccess(response.message || 'Order sent to vendor successfully!');
       setIsVerified(false);
+      
+      // Refresh the orders list
+      setTimeout(() => {
+        fetchPendingOrders();
+        setSuccess('');
+      }, 2000);
+    } catch (err) {
+      console.error('Error sending order to vendor:', err);
+      setError(err.response?.data?.detail || 'Failed to send order to vendor');
+    }
   };
 
   return (
@@ -171,33 +222,46 @@ const ViewOrdersPage = () => {
         <h3 className="page-title">Verify Merged Orders</h3>
         <p className="page-description">Review the combined order list from all kitchens. Verify and send to the vendor.</p>
       </div>
+      
+      {error && (
+        <p style={{
+          color: 'var(--red-dark)',
+          backgroundColor: '#fee2e2',
+          border: '1px solid var(--red)',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.375rem',
+          fontWeight: '500',
+          marginBottom: '1rem',
+          textAlign: 'center',
+          fontSize: '0.9rem'
+        }}>
+          {error}
+        </p>
+      )}
+      
+      {success && <p className="success-msg">{success}</p>}
+      
       <div className="card">
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
-                <th>Order ID</th>
                 <th>Item Name</th>
                 <th>Total Quantity</th>
-                {/* --- Removed Status Header --- */}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                // --- Adjusted colspan ---
-                <tr className="table-empty-row"><td colSpan="3">Loading orders...</td></tr>
+                <tr className="table-empty-row"><td colSpan="2">Loading orders...</td></tr>
               ) : orders.length > 0 ? (
                 orders.map((order, index) => (
-                  <tr key={`${order.orderId}-${index}`}>
-                    <td>{order.orderId}</td>
+                  <tr key={`${order.itemName}-${index}`}>
                     <td>{order.itemName}</td>
                     <td>{order.quantity}</td>
-                    {/* --- Removed Status Cell --- */}
                   </tr>
                 ))
               ) : (
-                 // --- Adjusted colspan ---
-                <tr className="table-empty-row"><td colSpan="3">No pending orders found.</td></tr>
+                <tr className="table-empty-row"><td colSpan="2">No pending orders found.</td></tr>
               )}
             </tbody>
           </table>
@@ -229,91 +293,217 @@ const ViewOrdersPage = () => {
   );
 };
 
-// --- UPDATED: Vendor Status Page (Removed Price Column, Added Total Price Box) ---
+// --- UPDATED: Vendor Status Page (Shows compiled orders sent to vendor) ---
 const VendorStatusPage = () => {
-    const [vendorFeedback, setVendorFeedback] = React.useState([
-        // Added dummy price property back for calculation
-        { orderId: 'ORD-001', itemName: 'Onion', available: true, price: 40, notes: 'Good quality' },
-        { orderId: 'ORD-001', itemName: 'Tomato', available: true, price: 30, notes: '' },
-        { orderId: 'ORD-002', itemName: 'Milk', available: false, price: null, notes: 'Out of stock today' },
-    ]);
-    const [loading, setLoading] = React.useState(false);
+    const [compiledOrders, setCompiledOrders] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState('');
 
-    // --- Calculate Total Price (Dummy calculation) ---
-    // This assumes 'price' is a number and 'quantity' includes a number part
-    const calculateTotalPrice = () => {
-        return vendorFeedback.reduce((total, item) => {
-            // Very basic extraction of quantity number - needs improvement for real data
-            const quantityMatch = item.quantity?.match(/(\d+)/); // Example: finds '20' in '20 kg'
-            const quantity = quantityMatch ? parseInt(quantityMatch[1], 10) : 0;
+    React.useEffect(() => {
+        fetchCompiledOrders();
+    }, []);
 
-            if (item.available && typeof item.price === 'number' && quantity > 0) {
-                // You might need a more robust way to handle units later
-                return total + (item.price * quantity);
-            }
-            return total;
-        }, 0);
+    const fetchCompiledOrders = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const { adminAPI } = await import('../services/api');
+            const data = await adminAPI.getCompiledOrders();
+            setCompiledOrders(data || []);
+        } catch (err) {
+            console.error('Error fetching compiled orders:', err);
+            setError('Failed to load compiled orders');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const totalPrice = calculateTotalPrice();
+    const getStatusColor = (status) => {
+        switch (status?.toLowerCase()) {
+            case 'pending': return '#f59e0b';
+            case 'completed': return 'var(--green-dark)';
+            case 'cancelled': return 'var(--red-dark)';
+            default: return 'var(--text-muted)';
+        }
+    };
 
     return (
         <>
             <div>
-                <h3 className="page-title">Vendor Availability Status</h3>
-                <p className="page-description">Check the availability and feedback provided by the vendor for the sent orders.</p>
+                <h3 className="page-title">Compiled Orders Status</h3>
+                <p className="page-description">View all compiled orders that have been sent to vendors.</p>
             </div>
+            
+            {error && (
+                <p style={{
+                    color: 'var(--red-dark)',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid var(--red)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.375rem',
+                    fontWeight: '500',
+                    marginBottom: '1rem',
+                    textAlign: 'center',
+                    fontSize: '0.9rem'
+                }}>
+                    {error}
+                </p>
+            )}
+            
             <div className="card">
                 <div className="table-container">
                     <table className="table">
                         <thead>
                             <tr>
-                                <th>Order ID</th>
-                                <th>Item Name</th>
-                                <th>Availability</th>
-                                {/* --- Removed Price/Notes Header --- */}
+                                <th>Order Date</th>
+                                <th>Total Items</th>
+                                <th>Status</th>
+                                <th>Details</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                // --- Adjusted colspan ---
-                                <tr className="table-empty-row"><td colSpan="3">Loading vendor status...</td></tr>
-                            ) : vendorFeedback.length > 0 ? (
-                                vendorFeedback.map((item, index) => (
-                                    <tr key={`${item.orderId}-${index}`}>
-                                        <td>{item.orderId}</td>
-                                        <td>{item.itemName}</td>
+                                <tr className="table-empty-row"><td colSpan="4">Loading compiled orders...</td></tr>
+                            ) : compiledOrders.length > 0 ? (
+                                compiledOrders.map((order) => (
+                                    <tr key={order.id}>
+                                        <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                                        <td>{order.total_items}</td>
                                         <td>
-                                            <span className={item.available ? 'status-available' : 'status-unavailable'}>
-                                                {item.available ? 'Available' : 'Unavailable'}
+                                            <span style={{ 
+                                                color: getStatusColor(order.status), 
+                                                fontWeight: 600,
+                                                textTransform: 'capitalize'
+                                            }}>
+                                                {order.status}
                                             </span>
-                                            {/* Optionally display notes here if needed */}
-                                            {item.notes && <span style={{fontSize: '0.8em', color: 'var(--text-muted)', marginLeft: '0.5em'}}>({item.notes})</span>}
                                         </td>
-                                        {/* --- Removed Price/Notes Cell --- */}
+                                        <td>
+                                            {order.orders?.map((item, idx) => (
+                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
+                                                    {item.item_name}: {item.total_quantity}
+                                                    {item.delivered_quantity && ` (Delivered: ${item.delivered_quantity})`}
+                                                </div>
+                                            ))}
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
-                                // --- Adjusted colspan ---
-                                <tr className="table-empty-row"><td colSpan="3">No vendor feedback received yet.</td></tr>
+                                <tr className="table-empty-row"><td colSpan="4">No compiled orders found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
-             {/* --- ADDED: Total Price Box --- */}
-             {vendorFeedback.length > 0 && (
-                <div className="total-price-box">
-                    Total Estimated Price: <span>₹{totalPrice.toFixed(2)}</span>
-                </div>
-             )}
         </>
     );
 };
 
+
+// Order History Page
+const OrderHistoryPage = () => {
+    const [history, setHistory] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState('');
 
-// Order History Page (Unchanged)
-const OrderHistoryPage = () => { /* ... history page jsx ... */ const [history, setHistory] = React.useState([]); const [loading, setLoading] = React.useState(false); return ( <> <div> <h3 className="page-title">Order History</h3> <p className="page-description">View past orders that have been processed.</p> </div> <div className="card"> <div className="table-container"> <table className="table"> <thead> <tr> <th>Order ID</th> <th>Date Verified</th> <th>Total Items</th> <th>Final Status</th> </tr> </thead> <tbody> {loading ? ( <tr className="table-empty-row"><td colSpan="4">Loading history...</td></tr> ) : history.length > 0 ? ( history.map((order) => ( <tr key={order.orderId}> <td>{order.orderId}</td> <td>{order.dateVerified}</td> <td>{order.itemCount}</td> <td>{order.finalStatus}</td> </tr> )) ) : ( <tr className="table-empty-row"><td colSpan="4">No order history found.</td></tr> )} </tbody> </table> </div> </div> </> );}
+    React.useEffect(() => {
+        fetchOrderHistory();
+    }, []);
+
+    const fetchOrderHistory = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const { adminAPI } = await import('../services/api');
+            const data = await adminAPI.getCompiledOrders();
+            setHistory(data || []);
+        } catch (err) {
+            console.error('Error fetching order history:', err);
+            setError('Failed to load order history');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status?.toLowerCase()) {
+            case 'pending': return '#f59e0b';
+            case 'completed': return 'var(--green-dark)';
+            case 'cancelled': return 'var(--red-dark)';
+            default: return 'var(--text-muted)';
+        }
+    };
+
+    return (
+        <>
+            <div>
+                <h3 className="page-title">Order History</h3>
+                <p className="page-description">View all compiled orders sent to vendors.</p>
+            </div>
+            
+            {error && (
+                <p style={{
+                    color: 'var(--red-dark)',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid var(--red)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.375rem',
+                    fontWeight: '500',
+                    marginBottom: '1rem',
+                    textAlign: 'center',
+                    fontSize: '0.9rem'
+                }}>
+                    {error}
+                </p>
+            )}
+            
+            <div className="card">
+                <div className="table-container">
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Total Items</th>
+                                <th>Status</th>
+                                <th>Items</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr className="table-empty-row"><td colSpan="4">Loading...</td></tr>
+                            ) : history.length > 0 ? (
+                                history.map((order) => (
+                                    <tr key={order.id}>
+                                        <td>{new Date(order.created_at).toLocaleString()}</td>
+                                        <td>{order.total_items}</td>
+                                        <td>
+                                            <span style={{ 
+                                                color: getStatusColor(order.status), 
+                                                fontWeight: 600,
+                                                textTransform: 'capitalize'
+                                            }}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {order.orders?.map((item, idx) => (
+                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
+                                                    {item.item_name}: {item.total_quantity}
+                                                </div>
+                                            ))}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr className="table-empty-row"><td colSpan="4">No orders found.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </>
+    );
+};
 
 // --- UPDATED: Create Account Page with API Integration ---
 const CreateAccountPage = () => {

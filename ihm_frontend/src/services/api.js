@@ -84,87 +84,51 @@ export const chefAPI = {
 
 // ==================== ADMIN APIs ====================
 export const adminAPI = {
-  // Get all pending merged orders
+  // Get all pending raw material requests (merged)
   getPendingOrders: async () => {
     const response = await apiClient.get('/admin/orders/pending');
     return response.data;
   },
 
-  // Get merged order details
-  getMergedOrderById: async (orderId) => {
-    const response = await apiClient.get(`/admin/orders/${orderId}`);
+  // Compile and send orders to vendor
+  compileOrder: async (orderData) => {
+    const response = await apiClient.post('/admin/orders/compile', orderData);
     return response.data;
   },
 
-  // Verify and forward order to vendor
-  verifyOrder: async (orderId) => {
-    const response = await apiClient.post(`/admin/orders/${orderId}/verify`);
+  // Get all compiled orders
+  getCompiledOrders: async () => {
+    const response = await apiClient.get('/admin/orders/compiled');
     return response.data;
   },
 
-  // Get all verified orders
-  getVerifiedOrders: async (params = {}) => {
-    const response = await apiClient.get('/admin/orders/verified', { params });
-    return response.data;
-  },
-
-  // Get order history
-  getOrderHistory: async (filters = {}) => {
-    const response = await apiClient.get('/admin/orders/history', {
-      params: filters,
-    });
-    return response.data;
-  },
-
-  // Get statistics
-  getStatistics: async () => {
-    const response = await apiClient.get('/admin/statistics');
+  // Get specific compiled order by ID
+  getCompiledOrderById: async (compiledOrderId) => {
+    const response = await apiClient.get(`/admin/orders/compiled/${compiledOrderId}`);
     return response.data;
   },
 };
 
 // ==================== VENDOR APIs ====================
 export const vendorAPI = {
-  // Get all orders from admin
-  getOrders: async (status = 'verified') => {
-    const response = await apiClient.get('/vendor/orders', {
-      params: { status },
-    });
+  // Get incoming orders (pending orders assigned to vendor)
+  getIncomingOrders: async () => {
+    const response = await apiClient.get('/vendor/orders/incoming');
     return response.data;
   },
 
-  // Get order by ID
-  getOrderById: async (orderId) => {
-    const response = await apiClient.get(`/vendor/orders/${orderId}`);
-    return response.data;
-  },
-
-  // Confirm order
-  confirmOrder: async (orderId) => {
-    const response = await apiClient.post(`/vendor/orders/${orderId}/confirm`);
-    return response.data;
-  },
-
-  // Mark order as supplied
-  markAsSupplied: async (orderId, supplyData = {}) => {
+  // Update order status with delivery quantities
+  updateOrderStatus: async (orderId, updateData) => {
     const response = await apiClient.post(
-      `/vendor/orders/${orderId}/supply`,
-      supplyData
+      `/vendor/orders/${orderId}/update-status`,
+      updateData
     );
     return response.data;
   },
 
-  // Get supply history
-  getSupplyHistory: async (filters = {}) => {
-    const response = await apiClient.get('/vendor/orders/history', {
-      params: filters,
-    });
-    return response.data;
-  },
-
-  // Get pending supplies
-  getPendingSupplies: async () => {
-    const response = await apiClient.get('/vendor/orders/pending-supplies');
+  // Get supply history (completed/cancelled orders)
+  getSupplyHistory: async () => {
+    const response = await apiClient.get('/vendor/orders/history');
     return response.data;
   },
 };

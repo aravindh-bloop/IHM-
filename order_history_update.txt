@@ -1,0 +1,99 @@
+// Order History Page
+const OrderHistoryPage = () => {
+    const [history, setHistory] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState('');
+
+    React.useEffect(() => {
+        fetchOrderHistory();
+    }, []);
+
+    const fetchOrderHistory = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const { adminAPI } = await import('../services/api');
+            const data = await adminAPI.getCompiledOrders();
+            
+            // Filter completed orders for history
+            const completedOrders = data?.filter(order => 
+                order.status?.toLowerCase() === 'completed'
+            ) || [];
+            
+            setHistory(completedOrders);
+        } catch (err) {
+            console.error('Error fetching order history:', err);
+            setError('Failed to load order history');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <>
+            <div>
+                <h3 className="page-title">Order History</h3>
+                <p className="page-description">View past orders that have been processed.</p>
+            </div>
+            
+            {error && (
+                <p style={{
+                    color: 'var(--red-dark)',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid var(--red)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.375rem',
+                    fontWeight: '500',
+                    marginBottom: '1rem',
+                    textAlign: 'center',
+                    fontSize: '0.9rem'
+                }}>
+                    {error}
+                </p>
+            )}
+            
+            <div className="card">
+                <div className="table-container">
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Total Items</th>
+                                <th>Status</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr className="table-empty-row"><td colSpan="4">Loading history...</td></tr>
+                            ) : history.length > 0 ? (
+                                history.map((order) => (
+                                    <tr key={order.id}>
+                                        <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                                        <td>{order.total_items}</td>
+                                        <td style={{ 
+                                            color: 'var(--green-dark)', 
+                                            fontWeight: 600,
+                                            textTransform: 'capitalize'
+                                        }}>
+                                            {order.status}
+                                        </td>
+                                        <td>
+                                            {order.orders?.map((item, idx) => (
+                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
+                                                    {item.item_name}: {item.total_quantity}
+                                                </div>
+                                            ))}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr className="table-empty-row"><td colSpan="4">No order history found.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </>
+    );
+};
