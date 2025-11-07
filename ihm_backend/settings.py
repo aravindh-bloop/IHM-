@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     redis_pass: Optional[str] = None
     redis_base: Optional[int] = None
 
+    # CORS settings
+    cors_origins: str = "*"  # Comma-separated list of allowed origins
+
     @property
     def db_url(self) -> URL:
         """
