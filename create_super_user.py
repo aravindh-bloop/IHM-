@@ -13,7 +13,11 @@ from ihm_backend.settings import settings
 async def create_superuser() -> None:
     """Create a superuser in the database."""
     # Create async engine and session
-    engine = create_async_engine(str(settings.db_url), echo=False)
+    engine = create_async_engine(
+        str(settings.db_url),
+        echo=False,
+        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+    )
     async_session_maker = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )

@@ -44,7 +44,10 @@ async def _engine() -> AsyncGenerator[AsyncEngine, None]:
 
     await create_database()
 
-    engine = create_async_engine(str(settings.db_url))
+    engine = create_async_engine(
+        str(settings.db_url),
+        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+    )
     async with engine.begin() as conn:
         await conn.run_sync(meta.create_all)
 

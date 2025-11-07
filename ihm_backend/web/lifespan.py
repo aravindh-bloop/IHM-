@@ -20,7 +20,11 @@ def _setup_db(app: FastAPI) -> None:  # pragma: no cover
 
     :param app: fastAPI application.
     """
-    engine = create_async_engine(str(settings.db_url), echo=settings.db_echo)
+    engine = create_async_engine(
+        str(settings.db_url),
+        echo=settings.db_echo,
+        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+    )
     session_factory = async_sessionmaker(
         engine,
         expire_on_commit=False,
