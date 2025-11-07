@@ -92,7 +92,15 @@ def get_jwt_strategy() -> JWTStrategy:
     return JWTStrategy(secret=settings.users_secret, lifetime_seconds=None)
 
 
-cookie_transport = CookieTransport()
+# Configure cookie transport for cross-domain authentication
+# SameSite=none is required for cross-domain cookies to work
+cookie_transport = CookieTransport(
+    cookie_name="fastapiusersauth",
+    cookie_max_age=3600 * 24 * 7,  # 7 days
+    cookie_secure=True,  # Required for SameSite=none
+    cookie_httponly=True,
+    cookie_samesite="none",  # Allow cross-domain cookies
+)
 auth_cookie = AuthenticationBackend(
     name="cookie",
     transport=cookie_transport,
