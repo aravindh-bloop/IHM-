@@ -250,38 +250,61 @@ export default function LoginPage() {
             )}
 
             {/* Password */}
-            {userRole && (
-              <div style={{ position: 'relative', marginBottom: '20px' }}>
-                <label htmlFor="password-input" style={visuallyHiddenStyles}>Password</label>
-                <Lock style={{ position: 'absolute', top: '14px', left: '16px', color: '#7dd3fc' }} />
-                <input
-                  id="password-input" // <-- Added id
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '14px 48px',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    background: 'rgba(255,255,255,0.1)',
-                    color: 'white',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  type="button" // <-- Set type to avoid form submission
-                  aria-label={showPassword ? "Hide password" : "Show password"} // <-- Added aria-label
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute', right: '14px', top: '14px',
-                    background: 'none', border: 'none', cursor: 'pointer', color: '#7dd3fc'
-                  }}>
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
-            )}
+{userRole && (
+  <div style={{ position: 'relative', marginBottom: '20px' }}>
+    <label htmlFor="password-input" style={visuallyHiddenStyles}>
+      Password
+    </label>
+
+    {/* Password Icon (left) */}
+    <Lock
+      style={{
+        position: 'absolute',
+        top: '14px',
+        left: '16px',
+        color: '#7dd3fc',
+      }}
+    />
+
+    {/* Input */}
+    <input
+      id="password-input"
+      type={showPassword ? 'text' : 'password'}
+      placeholder="Enter your password"
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      style={{
+        width: '100%',
+        padding: '14px 48px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255,255,255,0.3)',
+        background: 'rgba(255,255,255,0.1)',
+        color: 'white',
+        outline: 'none',
+        WebkitTextfieldDecorationContainer: "none",
+    WebkitPasswordToggle: "none"
+      }}
+    />
+
+    {/* SINGLE Blue Eye Icon (Toggle Button) */}
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      aria-label={showPassword ? 'Hide password' : 'Show password'}
+      style={{
+        position: 'absolute',
+        right: '14px',
+        top: '12px',
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        color: '#60a5fa', // brighter blue
+      }}
+    >
+      {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+    </button>
+  </div>
+)}
 
             {/* Error */}
             {error && (

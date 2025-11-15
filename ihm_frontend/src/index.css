@@ -9,7 +9,35 @@ body, html {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
-/* A good practice for consistent layout sizing */
+/* Consistent layout sizing */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+/* Remove default password eye icon in Microsoft Edge */
+input[type="password"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input[type="password"]::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Remove new Edge chromium toggle */
+input[type="password"]::-webkit-password-toggle {
+  display: none !important;
+}
+
+/* Remove autofill decoration on some browsers */
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none !important;
+}
+
+/* Extra protection — hides the entire decoration container */
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
 }
