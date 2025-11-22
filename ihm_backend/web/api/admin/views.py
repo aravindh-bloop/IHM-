@@ -108,7 +108,8 @@ async def compile_and_send_to_vendor(
         order = Orders(
             compiled_order_id=compiled_order.id,
             item_name=item.item_name,
-            total_quantity=item.total_quantity
+            total_quantity=item.total_quantity,
+            unit=item.unit
         )
         db.add(order)
         created_orders.append({
@@ -159,11 +160,14 @@ async def get_compiled_orders(
                 order_id=str(order.id),
                 item_name=order.item_name,
                 total_quantity=order.total_quantity,
-                delivered_quantity=order.delivered_quantity
+                delivered_quantity=order.delivered_quantity,
+                unit=order.unit,
+                unit_price=float(order.unit_price) if order.unit_price else None,
+                total_price=float(order.total_price) if order.total_price else None
             )
             for order in orders
         ]
-        
+
         result.append(
             CompiledOrderDetail(
                 id=str(compiled_order.id),
@@ -171,6 +175,7 @@ async def get_compiled_orders(
                 vendor_id=str(compiled_order.vendor_id) if compiled_order.vendor_id else None,
                 status=compiled_order.status,
                 total_items=compiled_order.total_items,
+                total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
                 orders=order_details
             )
         )
@@ -204,16 +209,20 @@ async def get_compiled_order_by_id(
             order_id=str(order.id),
             item_name=order.item_name,
             total_quantity=order.total_quantity,
-            delivered_quantity=order.delivered_quantity
+            delivered_quantity=order.delivered_quantity,
+            unit=order.unit,
+            unit_price=float(order.unit_price) if order.unit_price else None,
+            total_price=float(order.total_price) if order.total_price else None
         )
         for order in orders
     ]
-    
+
     return CompiledOrderDetail(
         id=str(compiled_order.id),
         created_at=compiled_order.created_at,
         vendor_id=str(compiled_order.vendor_id) if compiled_order.vendor_id else None,
         status=compiled_order.status,
         total_items=compiled_order.total_items,
+        total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
         orders=order_details
     )

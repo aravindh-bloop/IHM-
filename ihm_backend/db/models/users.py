@@ -25,10 +25,19 @@ class UserRole(str, enum.Enum):
     VENDOR = "vendor"
 
 
+class Kitchen(str, enum.Enum):
+    """kitchen types"""
+    ATK = "ATK"
+    BTK = "BTK"
+    QTK = "QTK"
+    CRAFT = "CRAFT"
+
+
 class User(SQLAlchemyBaseUserTableUUID, Base):
     """Represents a user entity."""
 
     role: UserRole = Column(AlchemyEnum(UserRole), nullable=False)
+    kitchen: Kitchen | None = Column(AlchemyEnum(Kitchen), nullable=True)
     created_at: datetime = Column(DateTime, default=datetime.utcnow())
     stalls = relationship("Stall", back_populates="operator", lazy="select")
 
@@ -36,6 +45,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     """Represents a read command for a user."""
 
     role: UserRole
+    kitchen: Kitchen | None
     created_at: datetime
 
 
@@ -43,6 +53,7 @@ class UserCreate(schemas.BaseUserCreate):
     """Represents a create command for a user."""
 
     role: UserRole = UserRole.STALL_OWNER
+    kitchen: Kitchen | None = None
     stall_name: str | None = None
 
 
@@ -50,6 +61,7 @@ class UserUpdate(schemas.BaseUserUpdate):
     """Represents an update command for a user."""
 
     role: UserRole | None = None
+    kitchen: Kitchen | None = None
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

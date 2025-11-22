@@ -8,6 +8,7 @@ from ihm_backend.db.models.users import (  # type: ignore
     api_users,
     auth_cookie,
     UserRole,
+    Kitchen,
     get_user_manager
 )
 from ihm_backend.db.models.stall import Stall
@@ -16,6 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ihm_backend.db.dependencies import get_db_session
 
 router = APIRouter()
+
+@router.get(
+    "/kitchens",
+    response_model=list[str],
+    tags=["users"]
+)
+async def get_kitchens():
+    """Get all available kitchen options."""
+    return [kitchen.value for kitchen in Kitchen]
 
 @router.post(
     "/auth/register",
@@ -27,6 +37,17 @@ async def register_user(
     session: AsyncSession = Depends(get_db_session),
     user_manager = Depends(get_user_manager)):
     stall_name = user_data.stall_name
+    
+    # If role is STALL_OWNER and stall_name is provided, set kitchen field
+    if user_data.role == UserRole.STALL_OWNER and stall_name:
+        # Map stall_name to Kitchen enum and set kitchen field
+        try:
+            kitchen_enum = Kitchen(stall_name)
+            user_data.kitchen = kitchen_enum
+        except ValueError:
+            # If stall_name is not a valid kitchen, use it as stall name
+            pass
+    
     user_create_dict = user_data.model_dump(exclude={"stall_name"})
     user = await user_manager.create(UserCreate(**user_create_dict), safe=True, request=None)
 

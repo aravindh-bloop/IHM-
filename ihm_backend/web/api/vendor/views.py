@@ -52,17 +52,21 @@ async def get_incoming_orders(
                 item_id=str(order.id),
                 item_name=order.item_name,
                 total_quantity=order.total_quantity,
-                delivered_quantity=order.delivered_quantity
+                delivered_quantity=order.delivered_quantity,
+                unit=order.unit,
+                unit_price=float(order.unit_price) if order.unit_price else None,
+                total_price=float(order.total_price) if order.total_price else None
             )
             for order in orders
         ]
-        
+
         response.append(
             CompiledOrderForVendor(
                 order_id=str(compiled_order.id),
                 date=compiled_order.created_at.isoformat(),
                 status=compiled_order.status,
                 total_items=compiled_order.total_items,
+                total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
                 items=order_items
             )
         )
@@ -92,17 +96,32 @@ async def update_order_status(
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
     
     # Update individual order items
+    total_price_sum = 0
     for item_update in update_data.items:
+        # Calculate total price if unit price is provided
+        total_price = None
+        if item_update.unit_price is not None:
+            total_price = item_update.unit_price * item_update.delivered_quantity
+            total_price_sum += total_price
+        
         await db.execute(
             update(Orders)
             .where(Orders.id == uuid.UUID(item_update.item_id))
-            .values(delivered_quantity=item_update.delivered_quantity)
+            .values(
+                delivered_quantity=item_update.delivered_quantity,
+                unit_price=item_update.unit_price,
+                total_price=total_price
+            )
         )
-    
+
+    # Update compiled order total price
+    if total_price_sum > 0:
+        compiled_order.total_price = total_price_sum
+
     # Mark order as completed if specified
     if update_data.mark_as_completed:
         compiled_order.status = "completed"
-    
+
     await db.commit()
     
     return {
@@ -111,7 +130,7 @@ async def update_order_status(
     }
 
 
-@router.get("/orders/history", response_model=List[SupplyHistoryResponse])
+@router.get("/orders/history", response_model=List[CompiledOrderForVendor])
 async def get_supply_history(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.VENDOR))
@@ -130,18 +149,33 @@ async def get_supply_history(
     
     history = []
     for order in compiled_orders:
-        # Count items in this order
+        # Get all order items for this compiled order
         orders_result = await db.execute(
             select(Orders).where(Orders.compiled_order_id == order.id)
         )
-        item_count = len(orders_result.scalars().all())
-        
+        orders = orders_result.scalars().all()
+
+        order_items = [
+            OrderItemForVendor(
+                item_id=str(item.id),
+                item_name=item.item_name,
+                total_quantity=item.total_quantity,
+                delivered_quantity=item.delivered_quantity,
+                unit=item.unit,
+                unit_price=float(item.unit_price) if item.unit_price else None,
+                total_price=float(item.total_price) if item.total_price else None
+            )
+            for item in orders
+        ]
+
         history.append(
-            SupplyHistoryResponse(
+            CompiledOrderForVendor(
                 order_id=str(order.id),
                 date=order.created_at.isoformat(),
-                item_count=item_count,
-                status=order.status
+                status=order.status,
+                total_items=len(orders),
+                total_price=float(order.total_price) if order.total_price else None,
+                items=order_items
             )
         )
     

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, Integer
+from sqlalchemy import Column, String, ForeignKey, Integer, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from ihm_backend.db.base import Base
 from sqlalchemy.orm import relationship
@@ -14,3 +14,6 @@ class Orders(Base):
     item_name: str = Column(String, nullable=False)
     total_quantity: int = Column(Integer, nullable=False)
     delivered_quantity: int = Column(Integer, nullable=True)
+    unit: str = Column(String, nullable=True)
+    unit_price: float = Column(Numeric(10, 2), nullable=True)
+    total_price: float = Column(Numeric(10, 2), nullable=True)

@@ -133,6 +133,25 @@ const DashboardStyles = () => (
       .total-price-box { margin-left: 0; width: 100%; text-align: center; } /* Full width on mobile */
     }
 
+    /* Print Styles for Invoice */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      .invoice-modal, .invoice-modal * {
+        visibility: visible;
+      }
+      .invoice-modal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      button {
+        display: none !important;
+      }
+    }
+
   `}</style>
 );
 
@@ -156,10 +175,29 @@ const ViewOrdersPage = () => {
   const [isVerified, setIsVerified] = React.useState(false);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
+  const [lastOrder, setLastOrder] = React.useState(null);
+  const [loadingLastOrder, setLoadingLastOrder] = React.useState(true);
 
   React.useEffect(() => {
     fetchPendingOrders();
+    fetchLastOrder();
   }, []);
+
+  const fetchLastOrder = async () => {
+    setLoadingLastOrder(true);
+    try {
+      const { adminAPI } = await import('../services/api');
+      const compiledOrders = await adminAPI.getCompiledOrders();
+      if (compiledOrders && compiledOrders.length > 0) {
+        // Get the most recent order
+        setLastOrder(compiledOrders[0]);
+      }
+    } catch (err) {
+      console.error('Error fetching last order:', err);
+    } finally {
+      setLoadingLastOrder(false);
+    }
+  };
 
   const fetchPendingOrders = async () => {
     setLoading(true);
@@ -204,10 +242,11 @@ const ViewOrdersPage = () => {
       const response = await adminAPI.compileOrder(orderData);
       setSuccess(response.message || 'Order sent to vendor successfully!');
       setIsVerified(false);
-      
-      // Refresh the orders list
+
+      // Refresh the orders list and last order
       setTimeout(() => {
         fetchPendingOrders();
+        fetchLastOrder();
         setSuccess('');
       }, 2000);
     } catch (err) {
@@ -222,7 +261,65 @@ const ViewOrdersPage = () => {
         <h3 className="page-title">Verify Merged Orders</h3>
         <p className="page-description">Review the combined order list from all kitchens. Verify and send to the vendor.</p>
       </div>
-      
+
+      {/* Last Order Status Section */}
+      {lastOrder && (
+        <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: '#f0f9ff', borderLeft: '4px solid var(--primary-blue)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-dark)', margin: 0 }}>
+              Last Order Sent
+            </h4>
+            <span style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              textTransform: 'capitalize',
+              backgroundColor: lastOrder.status === 'completed' ? '#dcfce7' : lastOrder.status === 'pending' ? '#fef3c7' : '#fee2e2',
+              color: lastOrder.status === 'completed' ? '#166534' : lastOrder.status === 'pending' ? '#854d0e' : '#991b1b'
+            }}>
+              {lastOrder.status}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '0.9rem' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Date:</span>{' '}
+              <span style={{ color: 'var(--text-dark)' }}>{new Date(lastOrder.created_at).toLocaleDateString()}</span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Total Items:</span>{' '}
+              <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{lastOrder.total_items}</span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Total Price:</span>{' '}
+              <span style={{ color: lastOrder.total_price ? 'var(--green-dark)' : 'var(--text-muted)', fontWeight: 600 }}>
+                {lastOrder.total_price ? `₹${lastOrder.total_price.toFixed(2)}` : 'Pending'}
+              </span>
+            </div>
+          </div>
+          {lastOrder.orders && lastOrder.orders.length > 0 && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 500 }}>Items:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {lastOrder.orders.map((item, idx) => (
+                  <span key={idx} style={{
+                    padding: '0.25rem 0.75rem',
+                    backgroundColor: 'var(--white)',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-dark)',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    {item.item_name} ({item.delivered_quantity || item.total_quantity} {item.unit || 'kg'})
+                    {item.total_price && <span style={{ color: 'var(--green-dark)', marginLeft: '0.25rem' }}>₹{item.total_price.toFixed(2)}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {error && (
         <p style={{
           color: 'var(--red-dark)',
@@ -293,11 +390,248 @@ const ViewOrdersPage = () => {
   );
 };
 
+// --- Invoice Modal Component ---
+const InvoiceModal = ({ order, onClose }) => {
+  if (!order) return null;
+
+  const totalAmount = order.total_price || 0;
+  const currentDate = new Date().toLocaleDateString();
+  const orderDate = new Date(order.created_at).toLocaleDateString();
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '1rem'
+    }}>
+      <div className="invoice-modal" style={{
+        backgroundColor: 'white',
+        borderRadius: '0.75rem',
+        maxWidth: '800px',
+        width: '100%',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+      }}>
+        {/* Invoice Header */}
+        <div style={{
+          padding: '2rem',
+          borderBottom: '2px solid var(--primary-blue)',
+          backgroundColor: '#f9fafb'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+            <div>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-blue)', margin: 0 }}>
+                INVOICE
+              </h2>
+              <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>FUMU - Food Management System</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
+                <strong>Invoice #:</strong> {order.id.substring(0, 8).toUpperCase()}
+              </p>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
+                <strong>Date:</strong> {currentDate}
+              </p>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
+                <strong>Order Date:</strong> {orderDate}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Body */}
+        <div style={{ padding: '2rem' }}>
+          {/* Order Info */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '2rem',
+            padding: '1rem',
+            backgroundColor: '#f9fafb',
+            borderRadius: '0.5rem'
+          }}>
+            <div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                Order Status
+              </p>
+              <span style={{
+                padding: '0.25rem 0.75rem',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                textTransform: 'capitalize',
+                backgroundColor: order.status === 'completed' ? '#dcfce7' : order.status === 'pending' ? '#fef3c7' : '#fee2e2',
+                color: order.status === 'completed' ? '#166534' : order.status === 'pending' ? '#854d0e' : '#991b1b'
+              }}>
+                {order.status}
+              </span>
+            </div>
+            <div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                Total Items
+              </p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-dark)', margin: 0 }}>
+                {order.total_items}
+              </p>
+            </div>
+            <div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                Vendor ID
+              </p>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-dark)', margin: 0 }}>
+                {order.vendor_id ? order.vendor_id.substring(0, 8).toUpperCase() : 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            marginBottom: '2rem'
+          }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid var(--border-color)' }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Item Name
+                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Quantity
+                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Delivered
+                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Unit Price
+                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {order.orders?.map((item, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
+                    <strong>{item.item_name}</strong>
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
+                    {item.total_quantity} {item.unit || 'kg'}
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
+                    {item.delivered_quantity ? `${item.delivered_quantity} ${item.unit || 'kg'}` : '-'}
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
+                    {item.unit_price ? `₹${item.unit_price.toFixed(2)}` : '-'}
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+                    {item.total_price ? `₹${item.total_price.toFixed(2)}` : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Total Section */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '1.5rem',
+            backgroundColor: '#f9fafb',
+            borderRadius: '0.5rem'
+          }}>
+            <div style={{ minWidth: '300px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Subtotal:</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+                  {totalAmount > 0 ? `₹${totalAmount.toFixed(2)}` : 'Pending'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '2px solid var(--primary-blue)' }}>
+                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-dark)' }}>Total Amount:</span>
+                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-blue)' }}>
+                  {totalAmount > 0 ? `₹${totalAmount.toFixed(2)}` : 'Pending'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Note */}
+          <div style={{
+            marginTop: '2rem',
+            padding: '1rem',
+            backgroundColor: '#f0f9ff',
+            borderLeft: '4px solid var(--primary-blue)',
+            borderRadius: '0.375rem'
+          }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-dark)', margin: 0 }}>
+              <strong>Note:</strong> This is a system-generated invoice for internal tracking purposes.
+              {!totalAmount && ' Prices are pending vendor confirmation.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div style={{
+          padding: '1.5rem 2rem',
+          borderTop: '1px solid var(--border-color)',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '1rem',
+          backgroundColor: '#f9fafb'
+        }}>
+          <button
+            onClick={() => window.print()}
+            style={{
+              padding: '0.5rem 1.5rem',
+              backgroundColor: 'var(--primary-blue)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            Print Invoice
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '0.5rem 1.5rem',
+              backgroundColor: '#6b7280',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- UPDATED: Vendor Status Page (Shows compiled orders sent to vendor) ---
 const VendorStatusPage = () => {
     const [compiledOrders, setCompiledOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState('');
+    const [selectedOrder, setSelectedOrder] = React.useState(null);
 
     React.useEffect(() => {
         fetchCompiledOrders();
@@ -358,43 +692,73 @@ const VendorStatusPage = () => {
                                 <th>Order Date</th>
                                 <th>Total Items</th>
                                 <th>Status</th>
+                                <th>Total Price</th>
                                 <th>Details</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr className="table-empty-row"><td colSpan="4">Loading compiled orders...</td></tr>
+                                <tr className="table-empty-row"><td colSpan="6">Loading compiled orders...</td></tr>
                             ) : compiledOrders.length > 0 ? (
                                 compiledOrders.map((order) => (
                                     <tr key={order.id}>
                                         <td>{new Date(order.created_at).toLocaleDateString()}</td>
                                         <td>{order.total_items}</td>
                                         <td>
-                                            <span style={{ 
-                                                color: getStatusColor(order.status), 
+                                            <span style={{
+                                                color: getStatusColor(order.status),
                                                 fontWeight: 600,
                                                 textTransform: 'capitalize'
                                             }}>
                                                 {order.status}
                                             </span>
                                         </td>
+                                        <td style={{ fontWeight: 600, color: order.total_price ? 'var(--green-dark)' : 'var(--text-muted)' }}>
+                                            {order.total_price ? `₹${order.total_price.toFixed(2)}` : 'Pending'}
+                                        </td>
                                         <td>
                                             {order.orders?.map((item, idx) => (
                                                 <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
-                                                    {item.item_name}: {item.total_quantity}
-                                                    {item.delivered_quantity && ` (Delivered: ${item.delivered_quantity})`}
+                                                    {item.item_name}: {item.total_quantity} {item.unit || 'kg'}
+                                                    {item.delivered_quantity && ` (Delivered: ${item.delivered_quantity} ${item.unit || 'kg'})`}
+                                                    {item.unit_price && ` @ ₹${item.unit_price}/${item.unit || 'unit'}`}
+                                                    {item.total_price && ` = ₹${item.total_price.toFixed(2)}`}
                                                 </div>
                                             ))}
+                                        </td>
+                                        <td>
+                                            <button
+                                                onClick={() => setSelectedOrder(order)}
+                                                style={{
+                                                    padding: '0.5rem 1rem',
+                                                    backgroundColor: 'var(--primary-blue)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '0.375rem',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.875rem',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                View Invoice
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr className="table-empty-row"><td colSpan="4">No compiled orders found.</td></tr>
+                                <tr className="table-empty-row"><td colSpan="6">No compiled orders found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* Invoice Modal */}
+            {selectedOrder && (
+                <InvoiceModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+            )}
         </>
     );
 };
@@ -405,6 +769,7 @@ const OrderHistoryPage = () => {
     const [history, setHistory] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState('');
+    const [selectedOrder, setSelectedOrder] = React.useState(null);
 
     React.useEffect(() => {
         fetchOrderHistory();
@@ -466,11 +831,12 @@ const OrderHistoryPage = () => {
                                 <th>Total Items</th>
                                 <th>Status</th>
                                 <th>Items</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr className="table-empty-row"><td colSpan="4">Loading...</td></tr>
+                                <tr className="table-empty-row"><td colSpan="5">Loading...</td></tr>
                             ) : history.length > 0 ? (
                                 history.map((order) => (
                                     <tr key={order.id}>
@@ -488,19 +854,42 @@ const OrderHistoryPage = () => {
                                         <td>
                                             {order.orders?.map((item, idx) => (
                                                 <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
-                                                    {item.item_name}: {item.total_quantity}
+                                                    {item.item_name}: {item.total_quantity} {item.unit || 'kg'}
                                                 </div>
                                             ))}
+                                        </td>
+                                        <td>
+                                            <button
+                                                onClick={() => setSelectedOrder(order)}
+                                                style={{
+                                                    padding: '0.5rem 1rem',
+                                                    backgroundColor: 'var(--primary-blue)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '0.375rem',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.875rem',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                View Invoice
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr className="table-empty-row"><td colSpan="4">No orders found.</td></tr>
+                                <tr className="table-empty-row"><td colSpan="5">No orders found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* Invoice Modal */}
+            {selectedOrder && (
+                <InvoiceModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+            )}
         </>
     );
 };
@@ -514,8 +903,26 @@ const CreateAccountPage = () => {
   const [loading, setLoading] = React.useState(false);
   const [successMsg, setSuccessMsg] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
+  const [kitchens, setKitchens] = React.useState([]);
+  const [loadingKitchens, setLoadingKitchens] = React.useState(true);
 
-  const kitchens = ['BTK', 'ATK', 'QTK', 'CRAFT'];
+  // Fetch kitchens on mount
+  React.useEffect(() => {
+    const fetchKitchens = async () => {
+      try {
+        const { authAPI } = await import('../services/api');
+        const data = await authAPI.getKitchens();
+        setKitchens(data);
+      } catch (error) {
+        console.error('Failed to fetch kitchens:', error);
+        // Fallback to hardcoded kitchens if API fails
+        setKitchens(['ATK', 'BTK', 'QTK', 'CRAFT']);
+      } finally {
+        setLoadingKitchens(false);
+      }
+    };
+    fetchKitchens();
+  }, []);
 
   const handleCreateAccount = async (e) => {
     e.preventDefault();

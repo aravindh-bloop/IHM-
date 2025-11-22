@@ -217,6 +217,12 @@ export const authAPI = {
     const response = await apiClient.post('/auth/register', userData);
     return response.data;
   },
+
+  // Get available kitchens
+  getKitchens: async () => {
+    const response = await apiClient.get('/kitchens');
+    return response.data;
+  },
 };
 
 export default apiClient;

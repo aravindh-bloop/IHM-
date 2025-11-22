@@ -53,6 +53,9 @@ class OrderDetail(BaseModel):
     item_name: str
     total_quantity: int
     delivered_quantity: Optional[int] = None
+    unit: Optional[str] = None
+    unit_price: Optional[float] = None
+    total_price: Optional[float] = None
 
 
 class CompiledOrderDetail(BaseModel):
@@ -61,6 +64,7 @@ class CompiledOrderDetail(BaseModel):
     vendor_id: Optional[str]
     status: str
     total_items: int
+    total_price: Optional[float] = None
     orders: List[OrderDetail]
 
     class Config:

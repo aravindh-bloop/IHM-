@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from ihm_backend.db.base import Base
 from sqlalchemy.orm import relationship
@@ -16,3 +16,4 @@ class CompiledOrders(Base):
 
     status: str = Column(String, default="pending", nullable=False)
     total_items: int = Column(Integer, nullable=False)
+    total_price: float = Column(Numeric(10, 2), nullable=True)

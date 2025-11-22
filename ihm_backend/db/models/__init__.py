@@ -16,5 +16,5 @@ def load_all_models() -> None:
 
 
 # Explicitly import models to ensure they're registered
-from ihm_backend.db.models.users import User  # noqa: F401, E402
+from ihm_backend.db.models.users import User, Kitchen, UserRole  # noqa: F401, E402
 from ihm_backend.db.models.stall import Stall  # noqa: F401, E402

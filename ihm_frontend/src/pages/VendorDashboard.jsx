@@ -388,19 +388,34 @@ const OrderFeedbackRow = ({ order, onFeedbackChange, onSubmitFeedback }) => {
                     <td>{item.quantity} {item.unit}</td>
                     <td></td>
                     <td colSpan="2">
-                        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                            <label style={{fontWeight: '500', whiteSpace: 'nowrap'}}>Delivered:</label>
-                            <input 
-                                type="number" 
-                                min="0"
-                                max={item.quantity}
-                                placeholder="Quantity delivered" 
-                                className="feedback-input" 
-                                style={{width: '150px', marginTop: 0}}
-                                value={onFeedbackChange.getFeedback(order.orderId, item.id)?.deliveredQty ?? item.quantity}
-                                onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'deliveredQty', parseInt(e.target.value) || 0)}
-                            />
-                            <span style={{color: 'var(--text-muted)'}}>{item.unit}</span>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                <label style={{fontWeight: '500', whiteSpace: 'nowrap'}}>Delivered:</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={item.quantity}
+                                    placeholder="Qty"
+                                    className="feedback-input"
+                                    style={{width: '100px', marginTop: 0}}
+                                    value={onFeedbackChange.getFeedback(order.orderId, item.id)?.deliveredQty ?? item.quantity}
+                                    onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'deliveredQty', parseInt(e.target.value) || 0)}
+                                />
+                                <span style={{color: 'var(--text-muted)'}}>{item.unit}</span>
+                            </div>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                <label style={{fontWeight: '500', whiteSpace: 'nowrap'}}>Unit Price:</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="₹"
+                                    className="feedback-input"
+                                    style={{width: '100px', marginTop: 0}}
+                                    value={onFeedbackChange.getFeedback(order.orderId, item.id)?.unitPrice ?? ''}
+                                    onChange={(e) => onFeedbackChange.setFeedback(order.orderId, item.id, 'unitPrice', parseFloat(e.target.value) || null)}
+                                />
+                            </div>
                         </div>
                     </td>
                 </tr>
@@ -443,7 +458,7 @@ const IncomingOrdersPage = () => {
                     id: item.item_id,
                     name: item.item_name,
                     quantity: item.total_quantity,
-                    unit: 'kg', // You may need to add unit to backend
+                    unit: item.unit || 'kg',
                     deliveredQty: item.delivered_quantity || 0
                 }))
             }));
@@ -494,7 +509,8 @@ const IncomingOrdersPage = () => {
             // Build items array for API
             const items = order.items.map(item => ({
                 item_id: item.id,
-                delivered_quantity: orderFeedback[item.id]?.deliveredQty ?? item.quantity
+                delivered_quantity: orderFeedback[item.id]?.deliveredQty ?? item.quantity,
+                unit_price: orderFeedback[item.id]?.unitPrice ?? null
             }));
 
             // Send to API
@@ -537,7 +553,7 @@ const IncomingOrdersPage = () => {
                                     <th>Item</th>
                                     <th>Total Qty Requested</th>
                                     <th>Status</th>
-                                    <th colSpan="2">Delivered Quantity</th>
+                                    <th colSpan="2">Delivered Quantity & Price</th>
                                 </tr>
                             </thead>
                             {/* Render each order using the OrderFeedbackRow component */}
@@ -568,7 +584,7 @@ const SupplyHistoryPage = () => {
     const [orders, setOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
-    
+
     React.useEffect(() => {
         fetchSupplyHistory();
     }, []);
@@ -578,12 +594,14 @@ const SupplyHistoryPage = () => {
             setLoading(true);
             setError(null);
             const response = await vendorAPI.getSupplyHistory();
-            // Transform API response
+            // Transform API response to include full order details
             const transformedHistory = response.map(order => ({
                 id: order.order_id,
                 date: new Date(order.date).toLocaleDateString(),
-                itemCount: order.item_count,
-                status: order.status
+                totalItems: order.total_items,
+                status: order.status,
+                totalPrice: order.total_price,
+                items: order.items || []
             }));
             setOrders(transformedHistory);
         } catch (err) {
@@ -594,13 +612,40 @@ const SupplyHistoryPage = () => {
         }
     };
 
+    const getStatusColor = (status) => {
+        switch (status?.toLowerCase()) {
+            case 'completed': return 'var(--green-dark)';
+            case 'cancelled': return 'var(--red-dark)';
+            default: return 'var(--text-muted)';
+        }
+    };
+
     return (
         <div className="page-section">
             <div>
                 <h3 className="page-title">Supply History</h3>
                 <p className="page-description">Record of all completed and cancelled orders.</p>
             </div>
-             <div className="card">
+
+            {error && (
+                <div style={{
+                    color: 'var(--red-dark)',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid var(--red)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.375rem',
+                    fontWeight: '500',
+                    marginBottom: '1rem',
+                    textAlign: 'center'
+                }}>
+                    {error}
+                    <button onClick={fetchSupplyHistory} className="btn" style={{marginTop: '1rem'}}>
+                        Retry
+                    </button>
+                </div>
+            )}
+
+            <div className="card">
                 <div className="table-container">
                     <table className="table">
                         <thead className="table-header">
@@ -609,34 +654,52 @@ const SupplyHistoryPage = () => {
                                 <th>Date</th>
                                 <th>Total Items</th>
                                 <th>Status</th>
+                                <th>Total Price</th>
+                                <th>Item Details</th>
                             </tr>
                         </thead>
                         <tbody className="table-body">
                             {loading ? (
                                 <tr className="table-empty-row">
-                                    <td colSpan="4">Loading history...</td>
+                                    <td colSpan="6">Loading history...</td>
                                 </tr>
-                            ) : error ? (
-                               <tr className="table-empty-row">
-                                   <td colSpan="4" style={{color: 'var(--red)'}}>
-                                       {error}
-                                       <button onClick={fetchSupplyHistory} className="btn" style={{marginTop: '1rem'}}>
-                                           Retry
-                                       </button>
-                                   </td>
-                               </tr>
-                           ) : orders.length > 0 ? (
+                            ) : orders.length > 0 ? (
                                 orders.map((order) => (
                                     <tr key={order.id}>
-                                        <td className="table-cell-name">{order.id}</td>
+                                        <td className="table-cell-name">{order.id.substring(0, 8).toUpperCase()}</td>
                                         <td>{order.date}</td>
-                                        <td>{order.itemCount} items</td>
-                                        <td><StatusBadge status={order.status} /></td>
+                                        <td>{order.totalItems}</td>
+                                        <td>
+                                            <span style={{
+                                                padding: '0.25rem 0.75rem',
+                                                borderRadius: '0.375rem',
+                                                fontSize: '0.875rem',
+                                                fontWeight: 600,
+                                                textTransform: 'capitalize',
+                                                backgroundColor: order.status === 'completed' ? '#dcfce7' : '#fee2e2',
+                                                color: getStatusColor(order.status)
+                                            }}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontWeight: 600, color: order.totalPrice ? 'var(--green-dark)' : 'var(--text-muted)' }}>
+                                            {order.totalPrice ? `₹${order.totalPrice.toFixed(2)}` : 'N/A'}
+                                        </td>
+                                        <td>
+                                            {order.items.map((item, idx) => (
+                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
+                                                    <strong>{item.item_name}:</strong> {item.total_quantity} {item.unit || 'kg'}
+                                                    {item.delivered_quantity && ` (Delivered: ${item.delivered_quantity} ${item.unit || 'kg'})`}
+                                                    {item.unit_price && ` @ ₹${item.unit_price}/${item.unit || 'unit'}`}
+                                                    {item.total_price && ` = ₹${item.total_price.toFixed(2)}`}
+                                                </div>
+                                            ))}
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr className="table-empty-row">
-                                    <td colSpan="4">No supply history found.</td>
+                                    <td colSpan="6">No supply history found.</td>
                                 </tr>
                             )}
                         </tbody>
