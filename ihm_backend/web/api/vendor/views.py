@@ -1,6 +1,6 @@
 """Vendor API endpoints."""
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from typing import List, Optional
@@ -17,6 +17,8 @@ from ihm_backend.web.api.vendor.schema import (
     SupplyHistoryResponse
 )
 from ihm_backend.web.dependencies.auth import require_role
+from ihm_backend.services.email import send_invoice_email, send_order_notification_email
+from ihm_backend.settings import settings
 
 router = APIRouter()
 
@@ -78,11 +80,12 @@ async def get_incoming_orders(
 async def update_order_status(
     order_id: uuid.UUID,
     update_data: UpdateOrderStatusRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.VENDOR))
 ):
     """Update order item availability and delivered quantities"""
-    
+
     # Verify the compiled order belongs to this vendor
     compiled_order_result = await db.execute(
         select(CompiledOrders).where(
@@ -91,12 +94,14 @@ async def update_order_status(
         )
     )
     compiled_order = compiled_order_result.scalar_one_or_none()
-    
+
     if not compiled_order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
-    
-    # Update individual order items
+
+    # Update individual order items and collect item details for email
     total_price_sum = 0
+    order_items = []
+    
     for item_update in update_data.items:
         # Calculate total price if unit price is provided
         total_price = None
@@ -104,15 +109,33 @@ async def update_order_status(
             total_price = item_update.unit_price * item_update.delivered_quantity
             total_price_sum += total_price
         
-        await db.execute(
-            update(Orders)
-            .where(Orders.id == uuid.UUID(item_update.item_id))
-            .values(
-                delivered_quantity=item_update.delivered_quantity,
-                unit_price=item_update.unit_price,
-                total_price=total_price
-            )
+        # Get the order item for email
+        order_item_result = await db.execute(
+            select(Orders).where(Orders.id == uuid.UUID(item_update.item_id))
         )
+        order_item = order_item_result.scalar_one_or_none()
+        
+        if order_item:
+            # Update the order
+            await db.execute(
+                update(Orders)
+                .where(Orders.id == uuid.UUID(item_update.item_id))
+                .values(
+                    delivered_quantity=item_update.delivered_quantity,
+                    unit_price=item_update.unit_price,
+                    total_price=total_price
+                )
+            )
+            
+            # Collect item details for email
+            order_items.append({
+                'item_name': order_item.item_name,
+                'total_quantity': order_item.total_quantity,
+                'delivered_quantity': item_update.delivered_quantity,
+                'unit': order_item.unit or 'kg',
+                'unit_price': item_update.unit_price or 0,
+                'total_price': total_price or 0
+            })
 
     # Update compiled order total price
     if total_price_sum > 0:
@@ -121,12 +144,53 @@ async def update_order_status(
     # Mark order as completed if specified
     if update_data.mark_as_completed:
         compiled_order.status = "completed"
+        
+        # Prepare email data
+        order_data = {
+            'order_id': str(order_id),
+            'order_date': compiled_order.created_at.strftime('%Y-%m-%d'),
+            'status': 'completed',
+            'total_items': len(order_items),
+            'total_price': total_price_sum,
+            'items': order_items,
+            'vendor_name': current_user.email
+        }
+        
+        # Send invoice email to all admins in background
+        try:
+            # Get all admin user emails
+            admin_result = await db.execute(
+                select(User).where(User.role == UserRole.ADMIN)
+            )
+            admin_users = admin_result.scalars().all()
+            
+            # Collect all admin emails
+            admin_emails = []
+            for admin in admin_users:
+                if admin.email:
+                    admin_emails.append(admin.email)
+            
+            # Fallback to settings if no admin users found
+            if not admin_emails:
+                admin_emails = [settings.admin_email]
+            
+            # Schedule email sending to all admins in background
+            if admin_emails:
+                background_tasks.add_task(
+                    send_invoice_email,
+                    admin_emails,
+                    order_data
+                )
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Error scheduling email: {e}")
 
     await db.commit()
-    
+
     return {
         "message": "Order status updated successfully",
-        "order_id": str(order_id)
+        "order_id": str(order_id),
+        "email_scheduled": update_data.mark_as_completed
     }
 
 

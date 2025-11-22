@@ -961,7 +961,20 @@ const CreateAccountPage = () => {
 
       const response = await authAPI.registerUser(userData);
 
-      setSuccessMsg(`✅ ${role === 'stall' ? 'Chef' : role.charAt(0).toUpperCase() + role.slice(1)} account created successfully for "${email}"${stallName ? ` at ${stallName} kitchen` : ''}`);
+      // Generate success message based on role
+      let successMessage = '✅ ';
+      if (role === 'stall') {
+        successMessage += `Chef account created successfully for "${email}"`;
+        if (stallName) {
+          successMessage += ` at ${stallName} kitchen`;
+        }
+      } else if (role === 'admin') {
+        successMessage += `Admin account created successfully for "${email}"`;
+      } else {
+        successMessage += `${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully for "${email}"`;
+      }
+      
+      setSuccessMsg(successMessage);
       
       // Reset form
       setEmail('');
@@ -984,7 +997,7 @@ const CreateAccountPage = () => {
     <>
       <div>
         <h3 className="page-title">Create Login Accounts</h3>
-        <p className="page-description">Admin can create Chef and Vendor login credentials here.</p>
+        <p className="page-description">Admin can create Chef, Vendor, and Admin login credentials here.</p>
       </div>
       <div
         className="card"
@@ -997,9 +1010,9 @@ const CreateAccountPage = () => {
         <form onSubmit={handleCreateAccount}>
           <div className="form-group">
             <label htmlFor="role-select">Role *</label>
-            <select 
-              id="role-select" 
-              value={role} 
+            <select
+              id="role-select"
+              value={role}
               onChange={(e) => {
                 setRole(e.target.value);
                 setStallName(''); // Reset stall name when role changes
@@ -1008,7 +1021,21 @@ const CreateAccountPage = () => {
             >
               <option value="stall">Chef</option>
               <option value="vendor">Vendor</option>
+              <option value="admin">Admin</option>
             </select>
+            {role === 'admin' && (
+              <p style={{
+                marginTop: '0.5rem',
+                fontSize: '0.875rem',
+                color: '#5b21b6',
+                backgroundColor: '#f0f9ff',
+                padding: '0.75rem',
+                borderRadius: '0.375rem',
+                borderLeft: '3px solid #5b21b6'
+              }}>
+                <strong>ℹ️ Note:</strong> Admin users will automatically receive invoice email notifications when vendors complete orders.
+              </p>
+            )}
           </div>
 
           {role === 'stall' && (
@@ -1083,6 +1110,36 @@ const CreateAccountPage = () => {
 
         {successMsg && <p className="success-msg">{successMsg}</p>}
       </div>
+
+      {/* Admin Users Info Section */}
+      {role === 'admin' && (
+        <div className="card" style={{ marginTop: '2rem', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
+          <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-dark)' }}>
+            📧 Email Notifications
+          </h4>
+          <div style={{
+            backgroundColor: '#f0f9ff',
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid #bfdbfe'
+          }}>
+            <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0, color: 'var(--text-dark)' }}>
+              <strong>All admin users</strong> automatically receive invoice email notifications when vendors complete order processing.
+            </p>
+            <ul style={{ fontSize: '0.9rem', lineHeight: '1.6', marginTop: '0.75rem', marginBottom: 0, paddingLeft: '1.5rem' }}>
+              <li>New admin accounts will start receiving emails immediately</li>
+              <li>Configure email settings in the backend .env file</li>
+              <li>Each admin receives a copy of every invoice</li>
+              <li>Emails include complete order details and pricing</li>
+            </ul>
+          </div>
+          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fef3c7', borderRadius: '0.375rem', border: '1px solid #fbbf24' }}>
+            <p style={{ fontSize: '0.85rem', margin: 0, color: '#78350f' }}>
+              <strong>⚠️ Important:</strong> Ensure new admin users have valid email addresses to receive notifications.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 };
