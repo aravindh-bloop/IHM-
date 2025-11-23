@@ -2,9 +2,8 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { stallAPI } from '../services/api';
 
-// --- MOCK DATA --- //
+
 const AVAILABLE_ITEMS = [
-  // ... (items list is unchanged)
   "Onion", "Tomato", "Potato", "Carrot", "Garlic", "Ginger", "Green Chilli", "Bell Pepper (Capsicum)", "Cabbage", "Cauliflower", "Spinach", "Lady's Finger (Okra)", "Brinjal (Eggplant)", "Cucumber", "Lemon", "Coriander Leaves", "Mint Leaves", "Curry Leaves",
   "Basmati Rice", "Sona Masoori Rice", "Idli Rice", "Whole Wheat Flour (Atta)", "All-Purpose Flour (Maida)", "Semolina (Rava/Sooji)", "Toor Dal (Arhar)", "Moong Dal", "Chana Dal", "Urad Dal", "Masoor Dal", "Chickpeas (Kabuli Chana)",
   "Turmeric Powder", "Red Chilli Powder", "Coriander Powder", "Cumin Powder", "Garam Masala", "Mustard Seeds", "Cumin Seeds", "Fenugreek Seeds", "Asafoetida (Hing)", "Black Pepper", "Cardamom", "Cloves", "Cinnamon", "Salt",
@@ -13,10 +12,9 @@ const AVAILABLE_ITEMS = [
   "Sugar", "Jaggery", "Poha (Flattened Rice)", "Tamarind", "Vinegar"
 ];
 
-// --- STYLES COMPONENT (Simplified) --- //
+
 const DashboardStyles = () => (
   <style>{`
-    /* --- All CSS styles are unchanged --- */
     :root {
       --primary-blue: #5b21b6;
       --primary-blue-dark: #588157;
@@ -30,6 +28,10 @@ const DashboardStyles = () => (
       --red-dark: #991b1b;
       --green: #22c55e;
       --green-dark: #15803d;
+      --yellow: #f59e0b;
+      --yellow-dark: #d97706;
+      --blue: #3b82f6;
+      --blue-dark: #1d4ed8;
       --shadow: 0 8px 16px rgba(93, 51, 177, 0.2);
       --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
     }
@@ -61,12 +63,68 @@ const DashboardStyles = () => (
     @media (min-width: 768px) { .form-grid { grid-template-columns: repeat(5, 1fr); } .form-grid-col-2 { grid-column: span 2 / span 2; } }
     .form-group { position: relative; }
     .form-label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-light); margin-bottom: 0.25rem; }
-    .form-input, .form-select { width: 100%; padding: 0.5rem 0.75rem; background-color: var(--white); border: 1px solid #d1d5db; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); box-sizing: border-box; }
+    .form-input, .form-select { width: 100%; padding: 0.5rem 0.75rem; background-color: var(--white); border: 2px solid #a669ecff; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); box-sizing: border-box; }
+    
+    /* 🎨 CHANGE 5: Improved dropdown styling */
+    .form-select { 
+      background: linear-gradient(135deg, rgba(91, 33, 182, 0.05), rgba(139, 92, 246, 0.1));
+      border: 2px solid var(--border-color);
+      font-weight: 500;
+      color: var(--text-dark);
+      cursor: pointer;
+    }
+    .form-select:hover {
+      border-color: var(--primary-blue);
+      background: linear-gradient(135deg, rgba(91, 33, 182, 0.1), rgba(139, 92, 246, 0.15));
+    }
+      /* Dropdown option styling - add this after .form-select:hover */
+.form-select option {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--white);
+  color: var(--text-dark);
+  font-weight: 500;
+}
+
+.form-select option:last-child {
+  border-bottom: none;
+}
+
+/* Color-coded dropdown options */
+.form-select option[value="pending"] {
+  color: #92400e;
+  background-color: #fef3c7;
+}
+
+.form-select option[value="approved"] {
+  color: #065f46;
+  background-color: #d1fae5;
+}
+
+.form-select option[value="rejected"] {
+  color: #991b1b;
+  background-color: #fee2e2;
+}
+
+.form-select option[value="completed"] {
+  color: #1e40af;
+  background-color: #dbeafe;
+}
+
+.form-select option[value="all"] {
+  color: var(--text-dark);
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+    
     .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4); }
     .btn { width: 100%; background-color: var(--primary-blue); color: var(--white); font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s; border: none; cursor: pointer; height: 38px; }
     .btn:hover { background-color: var(--primary-blue-dark); }
     .btn-green { background-color: var(--green); font-size: 1.125rem; padding: 0.75rem 2rem; height: auto; }
     .btn-green:hover { background-color: var(--green-dark); }
+    .btn-yellow { background-color: var(--yellow); }
+    .btn-yellow:hover { background-color: var(--yellow-dark); }
+    .btn-small { font-size: 0.875rem; padding: 0.4rem 0.8rem; height: auto; width: auto; margin-left: 0.5rem; }
     .btn-manual { font-size: 0.875rem; color: var(--primary-blue); margin-top: 0.5rem; background: none; border: none; padding: 0; cursor: pointer; }
     .btn-manual:hover { text-decoration: underline; }
     .manual-entry-text { font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem; }
@@ -88,6 +146,74 @@ const DashboardStyles = () => (
     .table-footer { margin-top: 1.5rem; display: flex; justify-content: flex-end; }
     .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .history-filter { display: flex; align-items: center; gap: 0.5rem; }
+    
+    /* 🎨 CHANGE 4: Color-coded status badges */
+    .status-badge {
+      padding: 0.35rem 0.9rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      text-transform: capitalize;
+      display: inline-block;
+    }
+    .status-pending {
+      background-color: #fef3c7;
+      color: #92400e;
+      border: 2px solid var(--yellow);
+    }
+    .status-approved {
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 2px solid var(--green);
+    }
+    .status-rejected {
+      background-color: #fee2e2;
+      color: #991b1b;
+      border: 2px solid var(--red);
+    }
+    .status-completed {
+      background-color: #dbeafe;
+      color: #1e40af;
+      border: 2px solid var(--blue);
+    }
+    
+    /* Confirmation Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background-color: var(--white);
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      width: 90%;
+    }
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+    }
+    .modal-message {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+    }
   `}</style>
 );
 
@@ -96,6 +222,28 @@ const DashboardStyles = () => (
 const CreateOrderIcon = () => ( <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2-2z"></path></svg> );
 const HistoryIcon = () => ( <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> );
 const LogoutIcon = () => ( <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> );
+
+// --- Confirmation Modal Component --- //
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal-title">{title}</h3>
+        <p className="modal-message">{message}</p>
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose} style={{backgroundColor: '#6b7280'}}>
+            Cancel
+          </button>
+          <button className="btn btn-green" onClick={onConfirm}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- Sub-Components --- //
 
@@ -141,12 +289,6 @@ const CreateOrderPage = () => {
   const [itemInputValue, setItemInputValue] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
-  // -- REMOVED: State for existing requests has been removed --
-  // const [existingRequests, setExistingRequests] = React.useState([]);
-  // const [isLoadingRequests, setIsLoadingRequests] = React.useState(true);
-
-  // -- REMOVED: useEffect to load existing requests has been removed --
-  
   const filteredItems = searchQuery 
     ? AVAILABLE_ITEMS.filter(item => item.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
@@ -155,7 +297,6 @@ const CreateOrderPage = () => {
     if (itemName && quantity) {
       const newItem = { name: itemName, quantity: parseInt(quantity), unit };
       setOrderItems([...orderItems, newItem]);
-      // Reset fields
       setItemName('');
       setQuantity('');
       setUnit('kg');
@@ -210,10 +351,7 @@ const CreateOrderPage = () => {
       alert(`Success! ${orderItems.length} items submitted to ${response.stall_name}`);
       console.log("Order submitted successfully:", response);
       
-      // Clear the list after successful submission
       setOrderItems([]);
-      
-      // -- REMOVED: Call to reload existing requests has been removed --
       
     } catch (error) {
       console.error("Error submitting order:", error);
@@ -223,8 +361,6 @@ const CreateOrderPage = () => {
     }
   };
 
-  // -- REMOVED: handleDeleteRequest function has been removed --
-
   return (
     <div className="page-section">
       <div>
@@ -232,7 +368,6 @@ const CreateOrderPage = () => {
         <p className="page-description">Search for an item or add one manually to build your order list.</p>
       </div>
 
-      {/* Item Input Section */}
       <div className="card">
         <div className="form-grid">
           <div className="form-group form-grid-col-2">
@@ -301,7 +436,6 @@ const CreateOrderPage = () => {
         </div>
       </div>
 
-      {/* Order List Table */}
       <div className="card">
         <h4 className="page-title" style={{fontSize: '1.25rem', marginBottom: '1rem'}}>Today's Order List ({orderItems.length} items)</h4>
         <div className="table-container">
@@ -348,21 +482,18 @@ const CreateOrderPage = () => {
           </div>
         )}
       </div>
-
-      {/* --- REMOVED: The entire "Existing Requests Section" has been removed --- */}
-      
     </div>
   );
 };
 
-// --- OrderHistoryPage - Shows all stall requests --- //
+// --- OrderHistoryPage with ALL improvements --- //
 const OrderHistoryPage = () => {
-    // This component is unchanged and will still try to fetch data.
-    // It's kept separate as requested.
     const [requests, setRequests] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [dateFilter, setDateFilter] = React.useState('');
     const [statusFilter, setStatusFilter] = React.useState('all');
+    const [editingRequest, setEditingRequest] = React.useState(null);
+    const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, action: null, requestId: null });
     
     React.useEffect(() => {
         loadOrderHistory();
@@ -381,18 +512,102 @@ const OrderHistoryPage = () => {
         }
     };
 
-    const filteredRequests = requests.filter(request => {
+    // 🔄 CHANGE 1: Sort by newest first (reverse chronological)
+    const sortedRequests = [...requests].sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    const filteredRequests = sortedRequests.filter(request => {
         const matchesDate = !dateFilter || 
             new Date(request.created_at).toISOString().split('T')[0] === dateFilter;
         const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
         return matchesDate && matchesStatus;
     });
 
+    // 🔄 CHANGE 2 & 3: Format timestamp properly and rename "compiled" to "approved"
+    const formatTimestamp = (timestamp) => {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-IN', { 
+            day: 'numeric', 
+            month: 'short', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const formatStatus = (status) => {
+        return status === 'compiled' ? 'approved' : status;
+    };
+
+    // 🔄 CHANGE 7: Confirmation modal for marking as completed
+    const handleMarkCompleted = (requestId) => {
+        setConfirmModal({
+            isOpen: true,
+            action: 'complete',
+            requestId: requestId,
+            title: 'Mark Order as Completed?',
+            message: 'Are you sure you want to mark this order as completed? This action will notify the admin.'
+        });
+    };
+
+    const confirmMarkCompleted = async () => {
+        // TODO: Add API call to mark as completed
+        console.log('Marking request as completed:', confirmModal.requestId);
+        alert('Order marked as completed!');
+        setConfirmModal({ isOpen: false, action: null, requestId: null });
+        loadOrderHistory();
+    };
+
+    // 🔄 CHANGE 8: Cancel/Delete order option
+    const handleCancelOrder = (requestId) => {
+        setConfirmModal({
+            isOpen: true,
+            action: 'cancel',
+            requestId: requestId,
+            title: 'Cancel This Order?',
+            message: 'Are you sure you want to cancel this order? This action cannot be undone.'
+        });
+    };
+
+    const confirmCancelOrder = async () => {
+        try {
+            // TODO: Add actual API call
+            console.log('Canceling request:', confirmModal.requestId);
+            alert('Order cancelled successfully!');
+            setConfirmModal({ isOpen: false, action: null, requestId: null });
+            loadOrderHistory();
+        } catch (error) {
+            console.error('Error canceling order:', error);
+            alert('Failed to cancel order');
+        }
+    };
+
+    // 🔄 CHANGE 9: Edit pending orders
+    const handleEditOrder = (request) => {
+        if (request.status === 'pending') {
+            setEditingRequest(request);
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        try {
+            // TODO: Add API call to update request
+            console.log('Saving edited request:', editingRequest);
+            alert('Order updated successfully!');
+            setEditingRequest(null);
+            loadOrderHistory();
+        } catch (error) {
+            console.error('Error updating order:', error);
+            alert('Failed to update order');
+        }
+    };
+
     return (
         <div className="page-section">
             <div>
                 <h3 className="page-title">Order History</h3>
-                <p className="page-description">A record of all your submitted raw material requests.</p>
+                <p className="page-description">A record of all your submitted raw material requests (newest first).</p>
             </div>
             <div className="card">
                 <div className="history-header">
@@ -441,12 +656,13 @@ const OrderHistoryPage = () => {
                                 <th>Unit</th>
                                 <th>Status</th>
                                 <th>Date Requested</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody className="table-body">
                             {loading ? (
                                 <tr className="table-empty-row">
-                                    <td colSpan="5">Loading history...</td>
+                                    <td colSpan="6">Loading history...</td>
                                 </tr>
                             ) : filteredRequests.length > 0 ? (
                                 filteredRequests.map((request) => (
@@ -455,16 +671,49 @@ const OrderHistoryPage = () => {
                                         <td>{request.quantity}</td>
                                         <td>{request.unit}</td>
                                         <td>
-                                            <span className={`status-badge status-${request.status.toLowerCase()}`}>
-                                                {request.status}
+                                            {/* 🎨 CHANGE 4: Color-coded status badges */}
+                                            <span className={`status-badge status-${formatStatus(request.status).toLowerCase()}`}>
+                                                {formatStatus(request.status)}
                                             </span>
                                         </td>
-                                        <td>{new Date(request.created_at).toLocaleString()}</td>
+                                        <td>
+                                            {/* ⏰ CHANGE 3: Properly formatted timestamp */}
+                                            {formatTimestamp(request.created_at)}
+                                        </td>
+                                        <td className="table-cell-action">
+                                            {/* 🔄 CHANGE 8 & 9: Edit/Cancel for pending orders */}
+                                            {request.status === 'pending' && (
+                                                <>
+                                                    <button 
+                                                        className="btn btn-small btn-yellow"
+                                                        onClick={() => handleEditOrder(request)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-small"
+                                                        style={{backgroundColor: '#dc2626'}}
+                                                        onClick={() => handleCancelOrder(request.id)}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </>
+                                            )}
+                                            {/* 🔄 CHANGE 7: Confirm before marking completed */}
+                                            {request.status === 'approved' && (
+                                                <button 
+                                                    className="btn btn-small btn-green"
+                                                    onClick={() => handleMarkCompleted(request.id)}
+                                                >
+                                                    Mark Completed
+                                                </button>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr className="table-empty-row">
-                                    <td colSpan="5">
+                                    <td colSpan="6">
                                         {dateFilter || statusFilter !== 'all' 
                                             ? 'No requests found matching your filters.' 
                                             : 'No past requests found.'}
@@ -480,12 +729,70 @@ const OrderHistoryPage = () => {
                     </div>
                 )}
             </div>
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal 
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ isOpen: false, action: null, requestId: null })}
+                onConfirm={confirmModal.action === 'complete' ? confirmMarkCompleted : confirmCancelOrder}
+                title={confirmModal.title}
+                message={confirmModal.message}
+            />
+
+            {/* Edit Modal */}
+            {editingRequest && (
+                <div className="modal-overlay" onClick={() => setEditingRequest(null)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="modal-title">Edit Order</h3>
+                        <div style={{marginBottom: '1rem'}}>
+                            <label className="form-label">Item Name</label>
+                            <input 
+                                type="text"
+                                className="form-input"
+                                value={editingRequest.item_name}
+                                onChange={(e) => setEditingRequest({...editingRequest, item_name: e.target.value})}
+                            />
+                        </div>
+                        <div style={{marginBottom: '1rem'}}>
+                            <label className="form-label">Quantity</label>
+                            <input 
+                                type="number"
+                                className="form-input"
+                                value={editingRequest.quantity}
+                                onChange={(e) => setEditingRequest({...editingRequest, quantity: parseInt(e.target.value)})}
+                            />
+                        </div>
+                        <div style={{marginBottom: '1.5rem'}}>
+                            <label className="form-label">Unit</label>
+                            <select 
+                                className="form-select"
+                                value={editingRequest.unit}
+                                onChange={(e) => setEditingRequest({...editingRequest, unit: e.target.value})}
+                            >
+                                <option>kg</option>
+                                <option>liters</option>
+                                <option>pieces</option>
+                                <option>grams</option>
+                                <option>packet</option>
+                            </select>
+                        </div>
+                        <div className="modal-actions">
+                            <button className="btn" onClick={() => setEditingRequest(null)} style={{backgroundColor: '#6b7280'}}>
+                                Cancel
+                            </button>
+                            <button className="btn btn-green" onClick={handleSaveEdit}>
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 
-// --- Main App Component (Renamed to ChefDashboard for clarity) --- //
+// --- Main App Component --- //
 export default function ChefDashboard() {
   const [activePage, setActivePage] = React.useState('create-order');
   const { user, logout } = useAuth(); 

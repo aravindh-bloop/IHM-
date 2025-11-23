@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// --- STYLES COMPONENT (Added styles for total price box) --- //
+// --- STYLES COMPONENT (Updated styles for dropdowns and table rows) --- //
 const DashboardStyles = () => (
   <style>{`
     :root { /* CSS Variables (Unchanged) */
@@ -70,12 +70,51 @@ const DashboardStyles = () => (
     /* --- Make Create Account button full width --- */
     .create-account-btn { width: 100%; display: block; }
 
-
-    /* Form Styles (Unchanged) */
+    /* Form Styles (UPDATED: Added specific border styles for dropdowns) */
     .form-group { margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
     .form-group label { font-weight: 500; color: var(--text-light); font-size: 0.875rem; }
-    .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 1rem; width: 100%; box-sizing: border-box; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.3); }
+    .form-group input, .form-group select { 
+      padding: 0.75rem; 
+      border: 2px solid var(--border-color); /* Increased border width */
+      border-radius: 0.375rem; 
+      font-size: 1rem; 
+      width: 100%; 
+      box-sizing: border-box;
+      background-color: var(--white);
+      color: var(--text-dark);
+    }
+    .form-group input:focus, .form-group select:focus { 
+      outline: none; 
+      border-color: var(--primary-blue); 
+      box-shadow: 0 0 0 2px rgba(70, 24, 144, 0.3); 
+    }
+    
+    /* Style for dropdown options */
+.form-group select option {
+  background-color: #5b21b6; /* Dark purple background */
+  color: white; /* White text */
+  padding: 0.5rem;
+  border-bottom: 1px solid #0f0d12ff; /* Slightly lighter purple border */
+}
+
+/* Hover effect for dropdown options */
+.form-group select option:hover {
+  background-color: #430451ff !important; /* Lighter purple on hover */
+  color: white !important;
+  cursor: pointer;
+}
+
+/* Selected option style */
+.form-group select option:checked {
+  background-color: #3b0764; /* Darker purple for selected */
+  color: white;
+}
+
+/* Focused option style */
+.form-group select option:focus {
+  background-color: #0c0215ff; /* Bright purple when focused */
+  color: white;
+}
 
     /* Page Title/Description (Unchanged) */
     .page-title { margin-bottom: 0.5rem; font-size: 1.5rem; font-weight: 600; color: var(--text-dark); }
@@ -84,13 +123,45 @@ const DashboardStyles = () => (
     /* Success Message (Unchanged) */
     .success-msg { color: var(--green-dark); background-color: #dcfce7; border: 1px solid var(--green); padding: 0.75rem 1rem; border-radius: 0.375rem; font-weight: 500; margin-top: 1.5rem; text-align: center; font-size: 0.9rem; }
 
-    /* Table Styles (Unchanged) */
+    /* Table Styles (UPDATED: Added borders for each row) */
     .table-container { overflow-x: auto; width: 100%; }
-    .table { width: 100%; border-collapse: collapse; min-width: 600px; font-size: 0.875rem; }
-    .table th, .table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
-    .table th { font-weight: 600; color: var(--text-light); background-color: #f3e8ff; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+    .table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      min-width: 600px; 
+      font-size: 0.875rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    .table th, .table td { 
+      padding: 0.75rem 1rem; 
+      text-align: left; 
+      border-bottom: 2px solid var(--border-color); /* Thicker row borders */
+    }
+    .table th { 
+      font-weight: 600; 
+      color: var(--text-light); 
+      background-color: #f3e8ff; 
+      text-transform: uppercase; 
+      font-size: 0.75rem; 
+      letter-spacing: 0.05em; 
+      border-bottom: 2px solid var(--border-color); /* Even thicker header border */
+    }
+    .table tbody tr { 
+      border-bottom: 2px solid var(--border-color); /* Ensure each row has border */
+    }
     .table tbody tr:hover { background-color: #faf5ff; }
-    .table-empty-row td { text-align: center; padding: 2rem; color: var(--text-muted); font-style: italic; border-bottom: none; }
+    .table tbody tr:last-child {
+      border-bottom: none; /* Remove border from last row */
+    }
+    .table-empty-row td { 
+      text-align: center; 
+      padding: 2rem; 
+      color: var(--text-muted); 
+      font-style: italic; 
+      border-bottom: none;
+    }
     .status-badge { padding: 0.25rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 9999px; text-transform: capitalize; background-color: #fef9c3; color: #854d0e; display: inline-block; }
     .table-footer { margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
     .verify-all-container { display: flex; align-items: center; gap: 0.5rem; cursor: pointer;}
@@ -121,8 +192,7 @@ const DashboardStyles = () => (
         color: var(--primary-blue);
     }
 
-
-    /* Media Queries (Unchanged) */
+    /* Media Queries (UPDATED: Added mobile styles for bordered table) */
     @media (max-width: 768px) {
       .sidebar { }
       .header { padding: 0.75rem 1rem; }
@@ -131,6 +201,16 @@ const DashboardStyles = () => (
       .btn { padding: 0.75rem 1rem; }
       .table-footer { justify-content: center; }
       .total-price-box { margin-left: 0; width: 100%; text-align: center; } /* Full width on mobile */
+      
+      /* Mobile table adjustments */
+      .table {
+        border: none;
+        min-width: unset;
+      }
+      .table th, .table td {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+      }
     }
 
   `}</style>
@@ -399,7 +479,6 @@ const VendorStatusPage = () => {
     );
 };
 
-
 // Order History Page
 const OrderHistoryPage = () => {
     const [history, setHistory] = React.useState([]);
@@ -598,6 +677,11 @@ const CreateAccountPage = () => {
                 setStallName(''); // Reset stall name when role changes
               }}
               disabled={loading}
+              style={{
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--white)',
+                color: 'var(--text-dark)'
+              }}
             >
               <option value="stall">Chef</option>
               <option value="vendor">Vendor</option>
@@ -613,6 +697,11 @@ const CreateAccountPage = () => {
                 onChange={(e) => setStallName(e.target.value)}
                 disabled={loading}
                 required
+                style={{
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--white)',
+                  color: 'var(--text-dark)'
+                }}
               >
                 <option value="">Select Kitchen</option>
                 {kitchens.map(kitchen => (

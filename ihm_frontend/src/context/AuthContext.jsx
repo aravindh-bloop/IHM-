@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }) => {
         // Logout immediately if roles don't match
         await authAPI.logout();
         return { 
-          success: false, 
-          error: `Invalid credentials for the '${credentials.role}' role.` 
-        };
+  success: false, 
+  error: `Invalid credentials for the '${credentials.role}' role`
+};
       }
 
       // Add kitchen info for stall owners if provided
