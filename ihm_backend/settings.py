@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     redis_pass: Optional[str] = None
     redis_base: Optional[int] = None
 
+    # Email settings
+    mail_username: str = "your-email@gmail.com"
+    mail_password: str = "your-app-password"
+    mail_from: str = "your-email@gmail.com"
+    mail_port: int = 587
+    mail_server: str = "smtp.gmail.com"
+    mail_from_name: str = "FUMU - Food Management System"
+    mail_starttls: bool = True
+    mail_ssl_tls: bool = False
+    admin_email: str = "admin@admin.com"  # Admin email to receive notifications
+
     # CORS settings
     cors_origins: str = "*"  # Comma-separated list of allowed origins
 

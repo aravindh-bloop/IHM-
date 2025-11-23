@@ -9,6 +9,9 @@ class OrderItemForVendor(BaseModel):
     item_name: str
     total_quantity: int
     delivered_quantity: Optional[int] = None
+    unit: Optional[str] = None
+    unit_price: Optional[float] = None
+    total_price: Optional[float] = None
 
 
 class CompiledOrderForVendor(BaseModel):
@@ -17,6 +20,7 @@ class CompiledOrderForVendor(BaseModel):
     date: str
     status: str
     total_items: int
+    total_price: Optional[float] = None
     items: List[OrderItemForVendor]
 
 
@@ -29,6 +33,7 @@ class ItemStatusUpdate(BaseModel):
     """Update status for individual item"""
     item_id: str
     delivered_quantity: int
+    unit_price: Optional[float] = None
 
 
 class UpdateOrderStatusRequest(BaseModel):
@@ -43,3 +48,4 @@ class SupplyHistoryResponse(BaseModel):
     date: str
     item_count: int
     status: str
+    total_price: Optional[float] = None
