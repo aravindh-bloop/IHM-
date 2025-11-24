@@ -18,7 +18,7 @@ const DashboardStyles = () => (
     :root {
       --primary-blue: #5b21b6;
       --primary-blue-dark: #588157;
-      --bg-gray: #e9d5ff;
+      --bg-gray: #fdfbff;
       --text-dark: #1e1b4b;
       --text-light: #6d28d9;
       --text-muted: #7c7aa9;
@@ -35,8 +35,8 @@ const DashboardStyles = () => (
       --shadow: 0 8px 16px rgba(93, 51, 177, 0.2);
       --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
     }
-    body { font-family: var(--font-family); margin: 0; }
-    .dashboard-container { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-gray); }
+    body { font-family: var(--font-family); margin: 0; overscroll-behavior: none;}
+    .dashboard-container { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-gray);overscroll-behavior: none; }
     .sidebar { width: 256px; background-color: var(--white); box-shadow: var(--shadow); display: flex; flex-direction: column; flex-shrink: 0; }
     .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
     .sidebar-title { font-size: 1.875rem; font-weight: 700; color: var(--primary-blue); letter-spacing: 0.05em; }
@@ -140,7 +140,7 @@ const DashboardStyles = () => (
     .table-body tr:first-child td { border-top: none; }
     .table-body { background-color: var(--white); }
     .table-cell-name { font-weight: 500; color: var(--text-dark); }
-    .table-cell-action { text-align: right; }
+    .table-cell-action { text-align: center; }
     .btn-remove { color: var(--red); font-weight: 500; background: none; border: none; cursor: pointer; }
     .btn-remove:hover { color: var(--red-dark); text-decoration: underline; }
     .table-footer { margin-top: 1.5rem; display: flex; justify-content: flex-end; }
@@ -348,7 +348,7 @@ const CreateOrderPage = () => {
 
       const response = await stallAPI.createRequest(requestData);
       
-      alert(`Success! ${orderItems.length} items submitted to ${response.stall_name}`);
+      alert(`Success! ${orderItems.length} items submitted to Admin`);
       console.log("Order submitted successfully:", response);
       
       setOrderItems([]);

@@ -8,7 +8,7 @@ const DashboardStyles = () => (
     :root {
       --primary-blue: #5b21b6;
       --primary-blue-dark: #3b0764;
-      --bg-gray: #e9d5ff;
+      --bg-gray: #fdfbff;
       --text-dark: #1e1b4b;
       --text-light: #6d28d9;
       --text-muted: #7c7aa9;
@@ -24,8 +24,8 @@ const DashboardStyles = () => (
       --purple-dark: var(--primary-blue-dark);
     }
     
-    body { font-family: var(--font-family); margin: 0; }
-    .dashboard-container { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-gray); }
+    body { font-family: var(--font-family); margin: 0; overscroll-behavior: none;}
+    .dashboard-container { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-gray);overscroll-behavior: none; }
 
     /* Sidebar */
     .sidebar { width: 256px; background-color: var(--white); box-shadow: var(--shadow); display: flex; flex-direction: column; flex-shrink: 0; }

@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext';
 // --- STYLES COMPONENT (Added styles for total price box) --- //
 const DashboardStyles = () => (
   <style>{`
-    :root { /* CSS Variables (Unchanged) */
+    :root { 
       --primary-blue: #5b21b6;
       --primary-blue-dark: #3b0764;
-      --bg-gray: #e9d5ff;
+      --bg-gray: #fdfbff;
       --text-dark: #0f172a;
       --text-light: #334155;
       --text-muted: #64748b;
@@ -22,10 +22,11 @@ const DashboardStyles = () => (
       --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
     }
 
-    body { /* Body Styles (Unchanged) */
+    body { 
       font-family: var(--font-family);
       margin: 0;
       background-color: var(--bg-gray);
+      overscroll-behavior: none;
     }
 
     .dashboard-container { /* Container Styles (Unchanged) */
@@ -33,6 +34,7 @@ const DashboardStyles = () => (
       height: 100vh;
       overflow: hidden;
       background-color: var(--bg-gray);
+      overscroll-behavior: none;
     }
 
     /* Sidebar (Unchanged) */
