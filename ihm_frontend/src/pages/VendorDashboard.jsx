@@ -273,11 +273,8 @@ const IncomingOrdersPage = () => {
                     id: item.item_id,
                     name: item.item_name,
                     quantity: item.total_quantity,
-<<<<<<< HEAD
-                    unit: 'kg',
-=======
                     unit: item.unit || 'kg',
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
+
                     deliveredQty: item.delivered_quantity || 0
                 }))
             }));
@@ -386,14 +383,11 @@ const SupplyHistoryPage = () => {
     const [orders, setOrders] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
-<<<<<<< HEAD
+
     const [selectedOrder, setSelectedOrder] = React.useState(null);
     const [orderDetails, setOrderDetails] = React.useState(null);
     const [loadingDetails, setLoadingDetails] = React.useState(false);
-    
-=======
 
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
     React.useEffect(() => {
         fetchSupplyHistory();
     }, []);
@@ -403,10 +397,8 @@ const SupplyHistoryPage = () => {
             setLoading(true);
             setError(null);
             const response = await vendorAPI.getSupplyHistory();
-<<<<<<< HEAD
-=======
-            // Transform API response to include full order details
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
+            console.log("API Response:", response);
+
             const transformedHistory = response.map(order => ({
                 id: order.order_id,
                 date: new Date(order.date).toLocaleDateString(),
@@ -424,7 +416,6 @@ const SupplyHistoryPage = () => {
         }
     };
 
-<<<<<<< HEAD
     // 🔄 CHANGE 9: Fetch and show completed order details
     const handleViewDetails = async (orderId) => {
         try {
@@ -451,13 +442,14 @@ const SupplyHistoryPage = () => {
             alert('Failed to load order details');
         } finally {
             setLoadingDetails(false);
-=======
+        }
+    };
+
     const getStatusColor = (status) => {
         switch (status?.toLowerCase()) {
             case 'completed': return 'var(--green-dark)';
             case 'cancelled': return 'var(--red-dark)';
             default: return 'var(--text-muted)';
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
         }
     };
 
@@ -495,52 +487,21 @@ const SupplyHistoryPage = () => {
                                 <th>Date</th>
                                 <th>Total Items</th>
                                 <th>Status</th>
-<<<<<<< HEAD
-                                <th>Actions</th>
-=======
                                 <th>Total Price</th>
                                 <th>Item Details</th>
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody className="table-body">
                             {loading ? (
                                 <tr className="table-empty-row">
-<<<<<<< HEAD
-                                    <td colSpan="5">Loading history...</td>
-                                </tr>
-                            ) : error ? (
-                               <tr className="table-empty-row">
-                                   <td colSpan="5" style={{color: 'var(--red)'}}>
-                                       {error}
-                                       <button onClick={fetchSupplyHistory} className="btn" style={{marginTop: '1rem'}}>
-                                           Retry
-                                       </button>
-                                   </td>
-                               </tr>
-                           ) : orders.length > 0 ? (
-=======
-                                    <td colSpan="6">Loading history...</td>
+                                    <td colSpan="7">Loading history...</td>
                                 </tr>
                             ) : orders.length > 0 ? (
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
                                 orders.map((order) => (
                                     <tr key={order.id}>
                                         <td className="table-cell-name">{order.id.substring(0, 8).toUpperCase()}</td>
                                         <td>{order.date}</td>
-<<<<<<< HEAD
-                                        <td>{order.itemCount} items</td>
-                                        <td><StatusBadge status={order.status} /></td>
-                                        <td>
-                                            {/* 🔄 CHANGE 9: Button to view what was included */}
-                                            <button 
-                                                className="btn btn-view"
-                                                onClick={() => handleViewDetails(order.id)}
-                                                disabled={loadingDetails}
-                                            >
-                                                {loadingDetails && selectedOrder === order.id ? 'Loading...' : 'View Details'}
-                                            </button>
-=======
                                         <td>{order.totalItems}</td>
                                         <td>
                                             <span style={{
@@ -567,17 +528,22 @@ const SupplyHistoryPage = () => {
                                                     {item.total_price && ` = ₹${item.total_price.toFixed(2)}`}
                                                 </div>
                                             ))}
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
+                                        </td>
+                                        <td>
+                                            {/* 🔄 CHANGE 9: Button to view what was included */}
+                                            <button 
+                                                className="btn btn-view"
+                                                onClick={() => handleViewDetails(order.id)}
+                                                disabled={loadingDetails}
+                                            >
+                                                {loadingDetails && selectedOrder === order.id ? 'Loading...' : 'View Details'}
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr className="table-empty-row">
-<<<<<<< HEAD
-                                    <td colSpan="5">No supply history found.</td>
-=======
-                                    <td colSpan="6">No supply history found.</td>
->>>>>>> ea6ef708aea3cb743e9174e5d043e1b18e8ae23f
+                                    <td colSpan="7">No supply history found.</td>
                                 </tr>
                             )}
                         </tbody>

@@ -59,7 +59,9 @@ export default function LoginPage() {
       alignItems: 'center',
       background: 'radial-gradient(circle at 20% 20%, #0f172a, #020617 70%)',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      overscrollBehavior: 'none'
+      
     }}>
       {/* Neon glowing circles (styles unchanged) */}
       <div style={{
@@ -186,7 +188,12 @@ export default function LoginPage() {
         transition: '0.3s',
         cursor: 'pointer',
         transform: userRole === id ? 'scale(1.05)' : 'scale(1)',
-        boxShadow: userRole === id ? '0 0 20px rgba(56,189,248,0.4)' : 'none'
+        boxShadow: userRole === id ? '0 0 20px rgba(56,189,248,0.4)' : 'none',
+        ':hover': {
+      background: 'rgba(56,189,248,0.15)',
+      border: '1px solid rgba(56,189,248,0.5)',
+      transform: 'scale(1.02)'
+    }
       }}>
 
       {/* --- ADD THIS LINE BACK --- */}
@@ -215,9 +222,17 @@ export default function LoginPage() {
                     borderRadius: '10px',
                     background: 'hsla(199, 88%, 22%, 0.86)',
                     color: 'white',
+                    fontFamily: 'Inter, sans-serif',
                     border: '1px solid rgba(255,255,255,0.3)',
-                    outline: 'none'
-                  }}
+                    outline: 'none',
+                    appearance: 'none',
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 12 12'%3E%3Cpath fill='%237dd3fc' d='M6 8.5L1.5 4h9L6 8.5z'/%3E%3C/svg%3E")`,
+                      backgroundPosition: 'right 17px center', // Adjust this number to move left/right
+                      backgroundRepeat: 'no-repeat',
+                      paddingRight: '30px',
+                      paddingLeft: '14px'
+
+                          }}
                 >
                   <option value="">Select Kitchen</option>
                   {kitchens.map(k => <option key={k} value={k}>{k} Kitchen</option>)}
@@ -229,7 +244,7 @@ export default function LoginPage() {
             {userRole && (
               <div style={{ position: 'relative', marginBottom: '20px' }}>
                 <label htmlFor="email-input" style={visuallyHiddenStyles}>Email Address</label>
-                <Mail style={{ position: 'absolute', top: '14px', left: '16px', color: '#7dd3fc' }} />
+                <Mail style={{ position: 'absolute', top: '10px', left: '16px', color: '#7dd3fc' }} />
                 <input
                   id="email-input" // <-- Added id
                   type="email"
@@ -258,11 +273,13 @@ export default function LoginPage() {
 
     {/* Password Icon (left) */}
     <Lock
+    
       style={{
         position: 'absolute',
-        top: '14px',
+        top:'10px',
         left: '16px',
         color: '#7dd3fc',
+        zIndex: 10
       }}
     />
 
@@ -336,7 +353,12 @@ export default function LoginPage() {
                   cursor: 'pointer',
                   boxShadow: '0 0 25px rgba(56,189,248,0.4)',
                   transition: '0.3s',
-                  opacity: loading ? 0.5 : 1, // Added disabled style
+                  opacity: loading ? 0.5 : 1, 
+                  ':hover': {
+      opacity: 0.9,
+      transform: 'translateY(-1px)',
+      boxShadow: '0 0 30px rgba(56,189,248,0.6)'
+    }
                 }}
               >
                 {loading ? 'Logging in...' : 'Login'}
