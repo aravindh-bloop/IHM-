@@ -174,12 +174,21 @@ const Header = ({ onLogout }) => ( /* ... header jsx ... */ <header className="h
 // --- UPDATED: View Orders Page (Removed Status Column) ---
 const ViewOrdersPage = () => {
   const [orders, setOrders] = React.useState([]);
+  const [rawRequests, setRawRequests] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [isVerified, setIsVerified] = React.useState(false);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
   const [lastOrder, setLastOrder] = React.useState(null);
   const [loadingLastOrder, setLoadingLastOrder] = React.useState(true);
+  const [editingRequest, setEditingRequest] = React.useState(null);
+
+  // Check if all requests are approved or rejected (no pending)
+  const allRequestsProcessed = rawRequests.length > 0 && 
+    rawRequests.every(req => req.status === 'approved' || req.status === 'rejected');
+  
+  // Check if at least one request is approved
+  const hasApprovedRequests = rawRequests.some(req => req.status === 'approved');
 
   React.useEffect(() => {
     fetchPendingOrders();
@@ -209,16 +218,16 @@ const ViewOrdersPage = () => {
       const { adminAPI } = await import('../services/api');
       const data = await adminAPI.getPendingOrders();
       
-      // Transform merged_items to display format
-      const transformedOrders = data.merged_items?.map(item => ({
-        itemName: item.item_name,
-        quantity: `${item.total_quantity} ${item.unit}`,
-        kitchen: item.kitchen,
-        total_quantity: item.total_quantity,
-        unit: item.unit
+      // Store raw requests with editable state
+      const transformedRequests = data.raw_requests?.map(req => ({
+        ...req,
+        id: req.id,
+        approved_quantity: req.approved_quantity || req.quantity,
+        isEditing: false
       })) || [];
       
-      setOrders(transformedOrders);
+      setRawRequests(transformedRequests);
+      updateMergedOrders(transformedRequests);
     } catch (err) {
       console.error('Error fetching pending orders:', err);
       setError('Failed to load pending orders');
@@ -227,20 +236,164 @@ const ViewOrdersPage = () => {
     }
   };
 
+  const updateMergedOrders = (requests) => {
+    // Calculate merged items based on approved quantities
+    const mergedDict = {};
+    requests.forEach(req => {
+      const key = `${req.item_name}_${req.unit}`;
+      const qtyToUse = req.status === 'approved' ? (req.approved_quantity || req.quantity) : 
+                       req.status === 'pending' ? req.quantity : 0;
+      
+      if (qtyToUse > 0) {
+        if (mergedDict[key]) {
+          mergedDict[key].total_quantity += qtyToUse;
+          mergedDict[key].kitchens.add(req.kitchen);
+        } else {
+          mergedDict[key] = {
+            itemName: req.item_name,
+            total_quantity: qtyToUse,
+            unit: req.unit,
+            kitchens: new Set([req.kitchen])
+          };
+        }
+      }
+    });
+    
+    // Transform to display format
+    const transformedOrders = Object.values(mergedDict).map(item => ({
+      itemName: item.itemName,
+      quantity: `${item.total_quantity} ${item.unit}`,
+      kitchen: Array.from(item.kitchens).join(', '),
+      total_quantity: item.total_quantity,
+      unit: item.unit
+    }));
+    
+    setOrders(transformedOrders);
+  };
+
+  const handleUpdateRequest = async (requestId, status, approvedQuantity) => {
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/orders/request/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          status,
+          approved_quantity: approvedQuantity
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update request');
+      }
+
+      // Update local state immediately for responsive UI
+      const updatedRequests = rawRequests.map(r =>
+        r.id === requestId ? { ...r, status, approved_quantity: approvedQuantity } : r
+      );
+      setRawRequests(updatedRequests);
+      updateMergedOrders(updatedRequests);
+      
+      setSuccess(`Request ${status} successfully`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error updating request:', err);
+      setError(err.message || 'Failed to update request');
+    }
+  };
+
+  const handleApprove = (requestId, approvedQuantity) => {
+    handleUpdateRequest(requestId, 'approved', approvedQuantity);
+    setEditingRequest(null);
+  };
+
+  const handleReject = (requestId) => {
+    handleUpdateRequest(requestId, 'rejected', 0);
+    setEditingRequest(null);
+  };
+
+  const handleApproveAll = async () => {
+    setError('');
+    try {
+      const pendingRequests = rawRequests.filter(req => req.status === 'pending');
+      
+      if (pendingRequests.length === 0) {
+        setError('No pending requests to approve');
+        return;
+      }
+
+      // Approve all pending requests with their full requested quantity
+      const approvalPromises = pendingRequests.map(req =>
+        fetch(`/api/admin/orders/request/${req.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            status: 'approved',
+            approved_quantity: req.quantity
+          })
+        })
+      );
+
+      await Promise.all(approvalPromises);
+
+      // Update local state
+      const updatedRequests = rawRequests.map(r =>
+        r.status === 'pending' ? { ...r, status: 'approved', approved_quantity: r.quantity } : r
+      );
+      setRawRequests(updatedRequests);
+      updateMergedOrders(updatedRequests);
+
+      setSuccess('All pending requests approved successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error approving all requests:', err);
+      setError('Failed to approve all requests');
+    }
+  };
+
   const handleSendToVendor = async () => {
     setError('');
     setSuccess('');
     
+    // Check if all requests are processed
+    if (!allRequestsProcessed) {
+      setError('Please approve or reject all pending requests before sending to vendor');
+      return;
+    }
+
+    // Check if at least one request is approved
+    if (!hasApprovedRequests) {
+      setError('No approved requests to send to vendor. Please approve at least one request.');
+      return;
+    }
+    
     try {
       const { adminAPI } = await import('../services/api');
       
-      // Prepare order data for compilation
+      // Recalculate merged items based on approved requests only
+      const approvedRequests = rawRequests.filter(req => req.status === 'approved');
+      
+      // Merge approved quantities by item and unit
+      const mergedApproved = {};
+      approvedRequests.forEach(req => {
+        const key = `${req.item_name}_${req.unit}`;
+        if (mergedApproved[key]) {
+          mergedApproved[key].total_quantity += (req.approved_quantity || req.quantity);
+        } else {
+          mergedApproved[key] = {
+            item_name: req.item_name,
+            total_quantity: req.approved_quantity || req.quantity,
+            unit: req.unit
+          };
+        }
+      });
+      
+      // Prepare order data for compilation with approved quantities
       const orderData = {
-        items: orders.map(order => ({
-          item_name: order.itemName,
-          total_quantity: order.total_quantity,
-          unit: order.unit
-        }))
+        items: Object.values(mergedApproved)
       };
       
       const response = await adminAPI.compileOrder(orderData);
@@ -262,8 +415,8 @@ const ViewOrdersPage = () => {
   return (
     <>
       <div>
-        <h3 className="page-title">Verify Merged Orders</h3>
-        <p className="page-description">Review the combined order list from all kitchens. Verify and send to the vendor.</p>
+        <h3 className="page-title">Pending Orders Overview</h3>
+        <p className="page-description">Review individual requests below. Approve/reject each request, then send approved orders to vendor.</p>
       </div>
 
       {/* Last Order Status Section */}
@@ -341,57 +494,277 @@ const ViewOrdersPage = () => {
       )}
       
       {success && <p className="success-msg">{success}</p>}
-      
-      <div className="card">
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Item Name</th>
-                <th>Kitchen</th>
-                <th>Total Quantity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr className="table-empty-row"><td colSpan="3">Loading orders...</td></tr>
-              ) : orders.length > 0 ? (
-                orders.map((order, index) => (
-                  <tr key={`${order.itemName}-${index}`}>
-                    <td>{order.itemName}</td>
-                    <td>{order.kitchen}</td>
-                    <td>{order.quantity}</td>
+
+      {/* Individual Requests Section - Show First */}
+      {rawRequests.length > 0 && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h4 className="page-title" style={{ marginBottom: '0.5rem', fontSize: '1.25rem' }}>
+                Individual Kitchen Requests
+              </h4>
+              <p className="page-description" style={{ marginBottom: 0 }}>
+                Review and approve/reject individual requests from each kitchen. Edit quantities before approving.
+              </p>
+            </div>
+            {rawRequests.some(req => req.status === 'pending') && (
+              <button
+                onClick={handleApproveAll}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#22c55e',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#16a34a'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#22c55e'}
+              >
+                ✓ Approve All Pending
+              </button>
+            )}
+          </div>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Kitchen</th>
+                  <th>Requested</th>
+                  <th>Approved Qty</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rawRequests.map((req, index) => (
+                  <tr key={req.id || index}>
+                    <td>{req.item_name}</td>
+                    <td>{req.kitchen}</td>
+                    <td>{req.quantity} {req.unit}</td>
+                    <td>
+                      {req.status === 'pending' && editingRequest === req.id ? (
+                        <input
+                          type="number"
+                          min="0"
+                          max={req.quantity}
+                          value={req.approved_quantity}
+                          onChange={(e) => {
+                            const newRequests = rawRequests.map(r =>
+                              r.id === req.id ? { ...r, approved_quantity: parseInt(e.target.value) || 0 } : r
+                            );
+                            setRawRequests(newRequests);
+                          }}
+                          style={{
+                            width: '80px',
+                            padding: '0.25rem',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '0.25rem'
+                          }}
+                        />
+                      ) : (
+                        <span>{req.approved_quantity || req.quantity} {req.unit}</span>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        textTransform: 'capitalize',
+                        backgroundColor: 
+                          req.status === 'approved' ? '#dcfce7' : 
+                          req.status === 'rejected' ? '#fee2e2' : '#fef3c7',
+                        color: 
+                          req.status === 'approved' ? '#166534' : 
+                          req.status === 'rejected' ? '#991b1b' : '#854d0e'
+                      }}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td>
+                      {req.status === 'pending' && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {editingRequest === req.id ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  handleApprove(req.id, req.approved_quantity);
+                                  setEditingRequest(null);
+                                }}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  backgroundColor: '#22c55e',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => setEditingRequest(null)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  backgroundColor: '#6b7280',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setEditingRequest(req.id)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleApprove(req.id, req.quantity)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  backgroundColor: '#22c55e',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => handleReject(req.id)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  backgroundColor: '#ef4444',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                ✗
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   </tr>
-                ))
-              ) : (
-                <tr className="table-empty-row"><td colSpan="3">No pending orders found.</td></tr>
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        {orders.length > 0 && (
+      )}
+
+      {/* Merged Summary Section */}
+      {orders.length > 0 && (
+        <div className="card" style={{ marginTop: '2rem', backgroundColor: '#f0f9ff', border: '2px solid var(--primary-blue)' }}>
+          <h4 className="page-title" style={{ marginBottom: '1rem', fontSize: '1.25rem', color: 'var(--primary-blue)' }}>
+            📊 Merged Orders Summary (Based on Approved Items)
+          </h4>
+          <p className="page-description" style={{ marginBottom: '1rem' }}>
+            This summary shows the total quantities to be sent to the vendor based on your approved requests.
+          </p>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item Name</th>
+                  <th>Kitchens</th>
+                  <th>Total Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order, index) => (
+                  <tr key={`${order.itemName}-${index}`}>
+                    <td><strong>{order.itemName}</strong></td>
+                    <td>{order.kitchen}</td>
+                    <td><strong>{order.quantity}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Send to Vendor Section */}
+      {rawRequests.length > 0 && (
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          {!allRequestsProcessed && (
+            <div style={{
+              backgroundColor: '#fef3c7',
+              border: '1px solid #f59e0b',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+              <span style={{ color: '#92400e', fontWeight: 500 }}>
+                Please approve or reject all pending requests before sending to vendor.
+                {rawRequests.filter(req => req.status === 'pending').length} requests remaining.
+              </span>
+            </div>
+          )}
           <div className="table-footer">
-            <div className="verify-all-container" onClick={() => setIsVerified(!isVerified)}>
+            <div className="verify-all-container" onClick={() => allRequestsProcessed && setIsVerified(!isVerified)}>
               <input
                 type="checkbox"
                 id="verify-all-checkbox"
                 checked={isVerified}
+                disabled={!allRequestsProcessed || !hasApprovedRequests}
                 onChange={(e) => setIsVerified(e.target.checked)}
               />
-              <label htmlFor="verify-all-checkbox">
-                I have verified all items in this order.
+              <label htmlFor="verify-all-checkbox" style={{ 
+                opacity: !allRequestsProcessed || !hasApprovedRequests ? 0.5 : 1,
+                cursor: !allRequestsProcessed || !hasApprovedRequests ? 'not-allowed' : 'pointer'
+              }}>
+                I have verified and approved all necessary items.
               </label>
             </div>
             <button
               className="btn btn-green"
               onClick={handleSendToVendor}
-              disabled={!isVerified}
+              disabled={!isVerified || !allRequestsProcessed || !hasApprovedRequests}
+              style={{
+                opacity: (!isVerified || !allRequestsProcessed || !hasApprovedRequests) ? 0.5 : 1,
+                cursor: (!isVerified || !allRequestsProcessed || !hasApprovedRequests) ? 'not-allowed' : 'pointer'
+              }}
             >
-              Send to Vendor
+              Send Approved Orders to Vendor
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 };

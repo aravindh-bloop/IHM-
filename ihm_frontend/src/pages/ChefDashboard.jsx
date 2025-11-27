@@ -572,14 +572,12 @@ const OrderHistoryPage = () => {
 
     const confirmCancelOrder = async () => {
         try {
-            // TODO: Add actual API call
-            console.log('Canceling request:', confirmModal.requestId);
-            alert('Order cancelled successfully!');
+            await stallAPI.deleteRequest(confirmModal.requestId);
             setConfirmModal({ isOpen: false, action: null, requestId: null });
             loadOrderHistory();
         } catch (error) {
             console.error('Error canceling order:', error);
-            alert('Failed to cancel order');
+            alert(error.response?.data?.detail || 'Failed to cancel order');
         }
     };
 
@@ -592,14 +590,16 @@ const OrderHistoryPage = () => {
 
     const handleSaveEdit = async () => {
         try {
-            // TODO: Add API call to update request
-            console.log('Saving edited request:', editingRequest);
-            alert('Order updated successfully!');
+            await stallAPI.updateRequest(editingRequest.id, {
+                item_name: editingRequest.item_name,
+                quantity: editingRequest.quantity,
+                unit: editingRequest.unit
+            });
             setEditingRequest(null);
             loadOrderHistory();
         } catch (error) {
             console.error('Error updating order:', error);
-            alert('Failed to update order');
+            alert(error.response?.data?.detail || 'Failed to update order');
         }
     };
 

@@ -14,6 +14,7 @@ class RawMaterialRequests(Base):
                                           nullable=False)
     item_name: str = Column(String, nullable=False)
     quantity: int = Column(Integer, nullable=False)
+    approved_quantity: int | None = Column(Integer, nullable=True)
     unit: str = Column(String, nullable=False)
     created_at: DateTime = Column(DateTime, default=datetime.utcnow)
     status: str = Column(String, default="pending", nullable=False)

@@ -18,6 +18,7 @@ class RawMaterialRequestDetail(BaseModel):
     kitchen: str
     item_name: str
     quantity: int
+    approved_quantity: Optional[int] = None
     unit: str
     created_at: datetime
     status: str
@@ -41,6 +42,11 @@ class CompileOrderItem(BaseModel):
 
 class CompileOrderRequest(BaseModel):
     items: List[CompileOrderItem]
+
+
+class UpdateRequestStatusRequest(BaseModel):
+    status: str  # approved, rejected
+    approved_quantity: Optional[int] = None
 
 
 class CompileOrderResponse(BaseModel):

@@ -16,7 +16,8 @@ from ihm_backend.web.api.admin.schema import (
     RawMaterialRequestDetail,
     MergedItem,
     CompiledOrderDetail,
-    OrderDetail
+    OrderDetail,
+    UpdateRequestStatusRequest
 )
 from ihm_backend.web.dependencies.auth import require_role
 
@@ -52,6 +53,7 @@ async def get_pending_raw_material_requests(
             kitchen=stall.kitchen.value,
             item_name=req.item_name,
             quantity=req.quantity,
+            approved_quantity=req.approved_quantity,
             unit=req.unit,
             created_at=req.created_at,
             status=req.status
@@ -80,6 +82,72 @@ async def get_pending_raw_material_requests(
         "total_requests": len(raw_requests),
         "merged_items": merged_items,
         "raw_requests": raw_requests
+    }
+
+
+@router.patch("/orders/request/{request_id}")
+async def update_request_status(
+    request_id: uuid.UUID,
+    update_data: UpdateRequestStatusRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Update individual raw material request status and approved quantity"""
+    result = await db.execute(
+        select(RawMaterialRequests).where(RawMaterialRequests.id == request_id)
+    )
+    request = result.scalar_one_or_none()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if request.status != "pending":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot update request with status '{request.status}'"
+        )
+    
+    # Validate status
+    if update_data.status not in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Status must be 'approved' or 'rejected'"
+        )
+    
+    # Update the request
+    request.status = update_data.status
+    
+    if update_data.status == "approved":
+        if update_data.approved_quantity is None:
+            # If no approved quantity specified, approve the full requested quantity
+            request.approved_quantity = request.quantity
+        else:
+            # Validate approved quantity
+            if update_data.approved_quantity < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Approved quantity cannot be negative"
+                )
+            if update_data.approved_quantity > request.quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Approved quantity cannot exceed requested quantity"
+                )
+            request.approved_quantity = update_data.approved_quantity
+    else:
+        # If rejected, set approved quantity to 0
+        request.approved_quantity = 0
+    
+    await db.commit()
+    await db.refresh(request)
+    
+    return {
+        "message": f"Request {update_data.status} successfully",
+        "id": str(request.id),
+        "item_name": request.item_name,
+        "requested_quantity": request.quantity,
+        "approved_quantity": request.approved_quantity,
+        "status": request.status
     }
 
 
@@ -119,15 +187,20 @@ async def compile_and_send_to_vendor(
             "total_quantity": item.total_quantity,
             "unit": item.unit
         })
-    await db.execute(
-        select(RawMaterialRequests)
-        .where(RawMaterialRequests.status == "pending")
+    
+    # Mark only approved requests as compiled
+    approved_requests = await db.execute(
+        select(RawMaterialRequests).where(RawMaterialRequests.status == "approved")
     )
-    pending_requests = await db.execute(
-        select(RawMaterialRequests).where(RawMaterialRequests.status == "pending")
-    )
-    for req in pending_requests.scalars():
+    for req in approved_requests.scalars():
         req.status = "compiled"
+    
+    # Mark rejected requests as rejected (they won't be compiled)
+    rejected_requests = await db.execute(
+        select(RawMaterialRequests).where(RawMaterialRequests.status == "rejected")
+    )
+    for req in rejected_requests.scalars():
+        req.status = "rejected"
 
     await db.commit()
 

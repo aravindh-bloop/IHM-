@@ -131,6 +131,13 @@ async def delete_request(
             detail="Request not found or does not belong to your stall"
         )
 
+    # Only allow deleting pending requests
+    if request_to_delete.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete request with status '{request_to_delete.status}'. Only pending requests can be deleted."
+        )
+
     await db.execute(
         delete(RawMaterialRequests).where(RawMaterialRequests.id == request_id)
     )
@@ -176,6 +183,13 @@ async def update_request(
         raise HTTPException(
             status_code=404,
             detail="Request not found or does not belong to your stall"
+        )
+
+    # Only allow editing pending requests
+    if request_to_update.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot edit request with status '{request_to_update.status}'. Only pending requests can be edited."
         )
 
     update_dict = update_data.model_dump(exclude_unset=True)
