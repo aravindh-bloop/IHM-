@@ -56,6 +56,7 @@ async def register_user(
         stall = Stall(
             id=uuid.uuid4(),
             stall_name=stall_name,
+            kitchen=user.kitchen,
             operator_id=user.id
         )
         session.add(stall)

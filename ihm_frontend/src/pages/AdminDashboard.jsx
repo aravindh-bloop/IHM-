@@ -213,6 +213,7 @@ const ViewOrdersPage = () => {
       const transformedOrders = data.merged_items?.map(item => ({
         itemName: item.item_name,
         quantity: `${item.total_quantity} ${item.unit}`,
+        kitchen: item.kitchen,
         total_quantity: item.total_quantity,
         unit: item.unit
       })) || [];
@@ -347,21 +348,23 @@ const ViewOrdersPage = () => {
             <thead>
               <tr>
                 <th>Item Name</th>
+                <th>Kitchen</th>
                 <th>Total Quantity</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr className="table-empty-row"><td colSpan="2">Loading orders...</td></tr>
+                <tr className="table-empty-row"><td colSpan="3">Loading orders...</td></tr>
               ) : orders.length > 0 ? (
                 orders.map((order, index) => (
                   <tr key={`${order.itemName}-${index}`}>
                     <td>{order.itemName}</td>
+                    <td>{order.kitchen}</td>
                     <td>{order.quantity}</td>
                   </tr>
                 ))
               ) : (
-                <tr className="table-empty-row"><td colSpan="2">No pending orders found.</td></tr>
+                <tr className="table-empty-row"><td colSpan="3">No pending orders found.</td></tr>
               )}
             </tbody>
           </table>

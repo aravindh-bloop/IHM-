@@ -8,12 +8,14 @@ class MergedItem(BaseModel):
     item_name: str
     total_quantity: int
     unit: str
+    kitchen: str
 
 
 class RawMaterialRequestDetail(BaseModel):
     id: uuid.UUID
     stall_id: uuid.UUID
     stall_name: str
+    kitchen: str
     item_name: str
     quantity: int
     unit: str

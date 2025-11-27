@@ -28,14 +28,14 @@ async def get_pending_raw_material_requests(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-    
+
     result = await db.execute(
         select(RawMaterialRequests, Stall)
         .join(Stall, RawMaterialRequests.stall_id == Stall.id)
         .where(RawMaterialRequests.status == "pending")
     )
     requests_with_stalls = result.all()
-    
+
     if not requests_with_stalls:
         return {
             "message": "No pending requests found",
@@ -43,12 +43,13 @@ async def get_pending_raw_material_requests(
             "merged_items": [],
             "raw_requests": []
         }
-    
+
     raw_requests = [
         RawMaterialRequestDetail(
             id=req.id,
             stall_id=req.stall_id,
             stall_name=stall.stall_name,
+            kitchen=stall.kitchen.value,
             item_name=req.item_name,
             quantity=req.quantity,
             unit=req.unit,
@@ -66,13 +67,14 @@ async def get_pending_raw_material_requests(
             merged_dict[key] = {
                 "item_name": req.item_name,
                 "total_quantity": req.quantity,
-                "unit": req.unit
+                "unit": req.unit,
+                "kitchen": stall.kitchen.value
             }
-    
+
     merged_items = [
         MergedItem(**item) for item in merged_dict.values()
     ]
-    
+
     return {
         "message": "Pending requests retrieved successfully",
         "total_requests": len(raw_requests),
@@ -91,10 +93,10 @@ async def compile_and_send_to_vendor(
         select(User).where(User.role == UserRole.VENDOR)
     )
     vendor = vendor_result.scalar_one_or_none()
-    
+
     if not vendor:
         raise HTTPException(status_code=404, detail="No vendor found in system")
-    
+
     compiled_order = CompiledOrders(
         vendor_id=vendor.id,
         status="pending",
@@ -102,7 +104,7 @@ async def compile_and_send_to_vendor(
     )
     db.add(compiled_order)
     await db.flush()
-    
+
     created_orders = []
     for item in order_data.items:
         order = Orders(
@@ -126,9 +128,9 @@ async def compile_and_send_to_vendor(
     )
     for req in pending_requests.scalars():
         req.status = "compiled"
-    
+
     await db.commit()
-    
+
     return {
         "message": "Order compiled and sent to vendor successfully",
         "compiled_order_id": str(compiled_order.id),
@@ -142,19 +144,19 @@ async def get_compiled_orders(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-    
+
     compiled_orders_result = await db.execute(
         select(CompiledOrders).order_by(CompiledOrders.created_at.desc())
     )
     compiled_orders = compiled_orders_result.scalars().all()
-    
+
     result = []
     for compiled_order in compiled_orders:
         orders_result = await db.execute(
             select(Orders).where(Orders.compiled_order_id == compiled_order.id)
         )
         orders = orders_result.scalars().all()
-        
+
         order_details = [
             OrderDetail(
                 order_id=str(order.id),
@@ -179,7 +181,7 @@ async def get_compiled_orders(
                 orders=order_details
             )
         )
-    
+
     return result
 
 
@@ -190,20 +192,20 @@ async def get_compiled_order_by_id(
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
     """Get specific compiled order details"""
-    
+
     compiled_order_result = await db.execute(
         select(CompiledOrders).where(CompiledOrders.id == compiled_order_id)
     )
     compiled_order = compiled_order_result.scalar_one_or_none()
-    
+
     if not compiled_order:
         raise HTTPException(status_code=404, detail="Compiled order not found")
-    
+
     orders_result = await db.execute(
         select(Orders).where(Orders.compiled_order_id == compiled_order.id)
     )
     orders = orders_result.scalars().all()
-    
+
     order_details = [
         OrderDetail(
             order_id=str(order.id),

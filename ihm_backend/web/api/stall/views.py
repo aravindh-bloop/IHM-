@@ -8,6 +8,7 @@ from ihm_backend.db.models.users import User
 from ihm_backend.db.models.stall import Stall
 from fastapi_users import FastAPIUsers
 from ihm_backend.db.models.users import api_users
+from ihm_backend.web.dependencies.auth import require_kitchen_access
 from sqlalchemy import select, delete
 
 router = APIRouter()
@@ -17,15 +18,21 @@ router = APIRouter()
 async def handle_request(
     item_data: ItemRequest,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(api_users.current_user(active=True))
+    current_user: User = Depends(require_kitchen_access)
 ):
     result = await db.execute(
-        select(Stall).where(Stall.operator_id == current_user.id)
+        select(Stall).where(
+            (Stall.operator_id == current_user.id) &
+            (Stall.kitchen == current_user.kitchen)
+        )
     )
     stall = result.scalar_one_or_none()
 
     if not stall:
-        raise HTTPException(status_code=404, detail="No stall found for this user")
+        raise HTTPException(
+            status_code=404, 
+            detail="No stall found for this user in your assigned kitchen"
+        )
 
     created_requests = []
     for item in item_data.items:
@@ -52,15 +59,21 @@ async def handle_request(
 @router.get("/request", response_model=RawMaterialRequestResponse)
 async def get_requests(
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(api_users.current_user(active=True))
+    current_user: User = Depends(require_kitchen_access)
 ):
     result = await db.execute(
-        select(Stall).where(Stall.operator_id == current_user.id)
+        select(Stall).where(
+            (Stall.operator_id == current_user.id) &
+            (Stall.kitchen == current_user.kitchen)
+        )
     )
     stall = result.scalar_one_or_none()
 
     if not stall:
-        raise HTTPException(status_code=404, detail="No stall found for this user")
+        raise HTTPException(
+            status_code=404, 
+            detail="No stall found for this user in your assigned kitchen"
+        )
 
     requests_res = await db.execute(
         select(RawMaterialRequests).where(RawMaterialRequests.stall_id ==
@@ -88,15 +101,21 @@ async def get_requests(
 async def delete_request(
     request_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(api_users.current_user(active=True))
+    current_user: User = Depends(require_kitchen_access)
 ):
     result = await db.execute(
-        select(Stall).where(Stall.operator_id == current_user.id)
+        select(Stall).where(
+            (Stall.operator_id == current_user.id) &
+            (Stall.kitchen == current_user.kitchen)
+        )
     )
     stall = result.scalar_one_or_none()
 
     if not stall:
-        raise HTTPException(status_code=404, detail="No stall found for this user")
+        raise HTTPException(
+            status_code=404, 
+            detail="No stall found for this user in your assigned kitchen"
+        )
 
     request_result = await db.execute(
         select(RawMaterialRequests).where(
@@ -129,15 +148,21 @@ async def update_request(
     request_id: uuid.UUID,
     update_data: ItemUpdate,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(api_users.current_user(active=True))
+    current_user: User = Depends(require_kitchen_access)
 ):
     result = await db.execute(
-        select(Stall).where(Stall.operator_id == current_user.id)
+        select(Stall).where(
+            (Stall.operator_id == current_user.id) &
+            (Stall.kitchen == current_user.kitchen)
+        )
     )
     stall = result.scalar_one_or_none()
 
     if not stall:
-        raise HTTPException(status_code=404, detail="No stall found for this user")
+        raise HTTPException(
+            status_code=404, 
+            detail="No stall found for this user in your assigned kitchen"
+        )
 
     request_result = await db.execute(
         select(RawMaterialRequests).where(

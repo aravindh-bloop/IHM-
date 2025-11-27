@@ -49,10 +49,28 @@ export const AuthProvider = ({ children }) => {
 };
       }
 
-      // Add kitchen info for stall owners if provided
+      // Validate kitchen for stall owners (chefs)
+      if (credentials.role === 'stall') {
+        if (!userData.kitchen) {
+          await authAPI.logout();
+          return {
+            success: false,
+            error: 'No kitchen assigned to your account. Please contact admin.'
+          };
+        }
+        if (userData.kitchen !== credentials.kitchen) {
+          await authAPI.logout();
+          return {
+            success: false,
+            error: `You don't belong to ${credentials.kitchen} kitchen.`
+          };
+        }
+      }
+
+      // Use kitchen from database for stall owners
       const userInfo = {
         ...userData,
-        kitchen: credentials.role === 'stall' ? credentials.kitchen : undefined,
+        kitchen: userData.kitchen,
       };
 
       setUser(userInfo);

@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from ihm_backend.db.models.users import User, UserRole, current_active_user
+from ihm_backend.db.models.users import User, UserRole, Kitchen, current_active_user
 
 
 def require_role(required_role: UserRole):
@@ -12,4 +12,12 @@ def require_role(required_role: UserRole):
     return role_checker
 
 
-
+def require_kitchen_access(user: User = Depends(current_active_user)):
+    """Validate that stall owner (chef) has a kitchen assigned"""
+    if user.role == UserRole.STALL_OWNER:
+        if not user.kitchen:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No kitchen assigned to your account"
+            )
+    return user
