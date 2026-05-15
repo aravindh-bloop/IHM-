@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     super_user: Optional[str] = None
     super_user_pass: Optional[str] = None
     # Variables for the database
+    # Either use individual parts OR db_url (connection string takes precedence)
+    db_url_string: Optional[str] = None
     db_host: str = "localhost"
     db_port: int = 5432
     db_user: str = "ihm_backend"
@@ -53,6 +55,8 @@ class Settings(BaseSettings):
     db_echo: bool = False
 
     # Variables for Redis
+    # Either use individual parts OR redis_url_string (connection string takes precedence)
+    redis_url_string: Optional[str] = None
     redis_host: str = "ihm_backend-redis"
     redis_port: int = 6379
     redis_user: Optional[str] = None
@@ -78,8 +82,26 @@ class Settings(BaseSettings):
         """
         Assemble database URL from settings.
 
+        Supports two modes:
+        1. Connection string: IHM_BACKEND_DB_URL_STRING (takes precedence)
+        2. Individual parts: IHM_BACKEND_DB_* (fallback)
+
+        Connection string MUST use asyncpg driver: postgresql+asyncpg://
+
         :return: database URL.
+        :raises ValueError: if connection string doesn't use asyncpg driver
         """
+        if self.db_url_string:
+            url = URL(self.db_url_string)
+            # Ensure we're using asyncpg driver
+            if url.scheme not in ("postgresql+asyncpg", "postgres+asyncpg"):
+                raise ValueError(
+                    f"Database URL must use asyncpg driver. "
+                    f"Expected 'postgresql+asyncpg://' but got '{url.scheme}://'. "
+                    f"Update IHM_BACKEND_DB_URL_STRING to use postgresql+asyncpg://"
+                )
+            return url
+        
         return URL.build(
             scheme="postgresql+asyncpg",
             host=self.db_host,
@@ -94,8 +116,15 @@ class Settings(BaseSettings):
         """
         Assemble REDIS URL from settings.
 
+        Supports two modes:
+        1. Connection string: IHM_BACKEND_REDIS_URL_STRING (takes precedence)
+        2. Individual parts: IHM_BACKEND_REDIS_* (fallback)
+
         :return: redis URL.
         """
+        if self.redis_url_string:
+            return URL(self.redis_url_string)
+        
         path = ""
         if self.redis_base is not None:
             path = f"/{self.redis_base}"

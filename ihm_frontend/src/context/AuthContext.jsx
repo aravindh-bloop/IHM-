@@ -33,20 +33,39 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = async (credentials) => {
     try {
-      // Call the real login API
-      await authAPI.login(credentials);
+      // Call the login API - returns 204 on success with auth cookie
+      const loginSuccess = await authAPI.login(credentials);
+      
+      if (!loginSuccess) {
+        return { success: false, error: 'Invalid email or password.' };
+      }
+      
+      // Small delay to ensure cookie is set before fetching user
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Get current user data after successful login
-      const userData = await authAPI.getCurrentUser();
+      let userData;
+      try {
+        userData = await authAPI.getCurrentUser();
+      } catch (error) {
+        console.error('Failed to fetch user after login:', error);
+        // Try logout since login succeeded but we can't get user data
+        try {
+          await authAPI.logout();
+        } catch (e) {
+          console.error('Logout after getUserData failure:', e);
+        }
+        return { success: false, error: 'Login succeeded but failed to load user data. Please try again.' };
+      }
       
       // Validate role matches what user selected
       if (userData.role !== credentials.role) {
         // Logout immediately if roles don't match
         await authAPI.logout();
         return { 
-  success: false, 
-  error: `Invalid credentials for the '${credentials.role}' role`
-};
+          success: false, 
+          error: `Invalid credentials for the '${credentials.role}' role`
+        };
       }
 
       // Validate kitchen for stall owners (chefs)
@@ -78,7 +97,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
-      const errorMessage = error.response?.data?.detail || 'Invalid email or password.';
+      const errorMessage = error.response?.data?.detail || error.message || 'Invalid email or password.';
       return { success: false, error: errorMessage };
     }
   };

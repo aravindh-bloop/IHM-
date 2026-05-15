@@ -32,6 +32,7 @@ taskiq-fastapi = "^0.3.3"
     taskiq-redis = "^1.0.2"
     pyzmq = "^26.2.0"
 fastapi-mail = "^1.5.8"
+psycopg2 = "^2.9.12"
 
 
 [tool.poetry.group.dev.dependencies]

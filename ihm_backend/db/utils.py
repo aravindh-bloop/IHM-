@@ -7,11 +7,13 @@ from ihm_backend.settings import settings
 
 async def create_database() -> None:
     """Create a database."""
-    db_url = make_url(str(settings.db_url.with_path("/postgres")))
+    db_url = make_url(str(settings.db_url_string))
     engine = create_async_engine(
         db_url,
         isolation_level="AUTOCOMMIT",
-        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+        connect_args={
+            "statement_cache_size": 0
+        },  # Disable prepared statements for pgbouncer
     )
 
     async with engine.connect() as conn:
@@ -39,7 +41,9 @@ async def drop_database() -> None:
     engine = create_async_engine(
         db_url,
         isolation_level="AUTOCOMMIT",
-        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+        connect_args={
+            "statement_cache_size": 0
+        },  # Disable prepared statements for pgbouncer
     )
     async with engine.connect() as conn:
         disc_users = (

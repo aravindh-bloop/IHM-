@@ -73,7 +73,7 @@ class CompiledOrderDetail(BaseModel):
     status: str
     total_items: int
     total_price: Optional[float] = None
-    orders: List[OrderDetail]
+    items: List[OrderDetail]
 
     class Config:
         from_attributes = True

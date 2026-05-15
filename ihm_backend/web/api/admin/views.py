@@ -29,15 +29,31 @@ async def get_pending_raw_material_requests(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-
+    # Get BOTH pending and approved requests
+    print("\n=== FETCHING ORDERS ===")
     result = await db.execute(
         select(RawMaterialRequests, Stall)
         .join(Stall, RawMaterialRequests.stall_id == Stall.id)
-        .where(RawMaterialRequests.status == "pending")
+        .where(RawMaterialRequests.status.in_(["pending", "approved"]))
+        .order_by(RawMaterialRequests.created_at.desc())
     )
     requests_with_stalls = result.all()
+    
+    print(f"Total requests found: {len(requests_with_stalls)}")
+    pending_count = 0
+    approved_count = 0
+    for req, stall in requests_with_stalls:
+        print(f"  - {req.item_name} ({req.quantity} {req.unit}): status={req.status}, approved_qty={req.approved_quantity}")
+        if req.status == "pending":
+            pending_count += 1
+        elif req.status == "approved":
+            approved_count += 1
+    print(f"Pending: {pending_count}, Approved: {approved_count}")
+    print("=== END FETCH ===")
 
     if not requests_with_stalls:
+        print("No requests found")
+        print("=== END FETCH ===")
         return {
             "message": "No pending requests found",
             "total_requests": 0,
@@ -76,6 +92,9 @@ async def get_pending_raw_material_requests(
     merged_items = [
         MergedItem(**item) for item in merged_dict.values()
     ]
+    
+    print(f"Returning response with {len(raw_requests)} raw requests and {len(merged_items)} merged items")
+    print("=== END FETCH ===")
 
     return {
         "message": "Pending requests retrieved successfully",
@@ -93,15 +112,23 @@ async def update_request_status(
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
     """Update individual raw material request status and approved quantity"""
+    print(f"\n=== UPDATE REQUEST: {request_id} ===")
+    print(f"Requested status: {update_data.status}")
+    print(f"Approved quantity: {update_data.approved_quantity}")
+    
     result = await db.execute(
         select(RawMaterialRequests).where(RawMaterialRequests.id == request_id)
     )
     request = result.scalar_one_or_none()
     
     if not request:
+        print(f"Request not found: {request_id}")
         raise HTTPException(status_code=404, detail="Request not found")
     
+    print(f"Current status: {request.status}")
+    
     if request.status != "pending":
+        print(f"Cannot update: status is {request.status}, not pending")
         raise HTTPException(
             status_code=400, 
             detail=f"Cannot update request with status '{request.status}'"
@@ -116,6 +143,7 @@ async def update_request_status(
     
     # Update the request
     request.status = update_data.status
+    print(f"Updated status to: {request.status}")
     
     if update_data.status == "approved":
         if update_data.approved_quantity is None:
@@ -138,8 +166,11 @@ async def update_request_status(
         # If rejected, set approved quantity to 0
         request.approved_quantity = 0
     
+    print(f"Approved quantity set to: {request.approved_quantity}")
     await db.commit()
     await db.refresh(request)
+    print(f"After commit - status: {request.status}, approved_qty: {request.approved_quantity}")
+    print(f"=== UPDATE COMPLETE ===")
     
     return {
         "message": f"Request {update_data.status} successfully",
@@ -217,11 +248,12 @@ async def get_compiled_orders(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-
+    print("\n=== FETCHING COMPILED ORDERS ===")
     compiled_orders_result = await db.execute(
         select(CompiledOrders).order_by(CompiledOrders.created_at.desc())
     )
     compiled_orders = compiled_orders_result.scalars().all()
+    print(f"Found {len(compiled_orders)} compiled orders")
 
     result = []
     for compiled_order in compiled_orders:
@@ -229,6 +261,7 @@ async def get_compiled_orders(
             select(Orders).where(Orders.compiled_order_id == compiled_order.id)
         )
         orders = orders_result.scalars().all()
+        print(f"  Order {compiled_order.id}: {len(orders)} items")
 
         order_details = [
             OrderDetail(
@@ -242,6 +275,8 @@ async def get_compiled_orders(
             )
             for order in orders
         ]
+        
+        print(f"    Items: {[item.item_name for item in order_details]}")
 
         result.append(
             CompiledOrderDetail(
@@ -251,10 +286,12 @@ async def get_compiled_orders(
                 status=compiled_order.status,
                 total_items=compiled_order.total_items,
                 total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
-                orders=order_details
+                items=order_details
             )
         )
-
+    
+    print(f"Returning {len(result)} compiled orders")
+    print("=== END FETCH ===")
     return result
 
 
@@ -299,5 +336,5 @@ async def get_compiled_order_by_id(
         status=compiled_order.status,
         total_items=compiled_order.total_items,
         total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
-        orders=order_details
+        items=order_details
     )

@@ -92,6 +92,12 @@ export const adminAPI = {
     return response.data;
   },
 
+  // Update request status (approve/reject)
+  updateRequestStatus: async (requestId, statusData) => {
+    const response = await apiClient.patch(`/admin/orders/request/${requestId}`, statusData);
+    return response.data;
+  },
+
   // Compile and send orders to vendor
   compileOrder: async (orderData) => {
     const response = await apiClient.post('/admin/orders/compile', orderData);
@@ -187,17 +193,18 @@ export const commonAPI = {
 export const authAPI = {
   // Login with email and password
   login: async (credentials) => {
-    // FastAPI Users expects form data for login
-    const formData = new FormData();
-    formData.append('username', credentials.email);
-    formData.append('password', credentials.password);
+    // FastAPI Users expects URL-encoded form data for login
+    const params = new URLSearchParams();
+    params.append('username', credentials.email);
+    params.append('password', credentials.password);
 
-    const response = await apiClient.post('/auth/cookie/login', formData, {
+    const response = await apiClient.post('/auth/cookie/login', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    return response.data;
+    // Login returns 204 No Content on success
+    return response.status === 204 || response.status === 200;
   },
 
   // Logout

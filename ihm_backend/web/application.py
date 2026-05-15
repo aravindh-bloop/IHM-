@@ -29,8 +29,8 @@ def get_app() -> FastAPI:
 
     # Add CORS middleware
     # Parse origins from comma-separated string
-    origins = [origin.strip() for origin in settings.cors_origins.split(",")]
-    
+    origins = ["*"]
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

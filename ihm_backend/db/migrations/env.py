@@ -43,8 +43,18 @@ async def run_migrations_offline() -> None:
     script output.
 
     """
+    db_url = str(settings.db_url)
+    
+    # Validate asyncpg usage
+    if "postgresql+asyncpg://" not in db_url and "postgres+asyncpg://" not in db_url:
+        raise ValueError(
+            f"Migrations require asyncpg driver. "
+            f"Database URL must use 'postgresql+asyncpg://' "
+            f"but got: {db_url[:50]}..."
+        )
+    
     context.configure(
-        url=str(settings.db_url),
+        url=db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -73,9 +83,27 @@ async def run_migrations_online() -> None:
     In this scenario we need to create an Engine
     and associate a connection with the context.
     """
+    db_url = str(settings.db_url)
+    
+    # Validate asyncpg usage
+    if "postgresql+asyncpg://" not in db_url and "postgres+asyncpg://" not in db_url:
+        raise ValueError(
+            f"Migrations require asyncpg driver. "
+            f"Database URL must use 'postgresql+asyncpg://' "
+            f"but got: {db_url[:50]}..."
+        )
+    
+    # Setup connect_args
+    connect_args = {"statement_cache_size": 0}  # Disable prepared statements for pgbouncer
+    
+    # Enable SSL for cloud databases (Neon, Heroku, etc.)
+    cloud_hosts = ['neon.tech', 'heroku.com', 'supabase.co', 'amazonaws.com', 'google.com']
+    if any(host in db_url for host in cloud_hosts):
+        connect_args["ssl"] = True
+    
     connectable = create_async_engine(
-        str(settings.db_url),
-        connect_args={"statement_cache_size": 0},  # Disable prepared statements for pgbouncer
+        db_url,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

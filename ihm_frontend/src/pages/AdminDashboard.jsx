@@ -1,1542 +1,1487 @@
-
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { Eye, Plus, Users, Clock, LogOut, CheckCircle, AlertCircle, Download, Moon, Sun } from 'lucide-react';
+import { adminAPI } from '../services/api';
+import { authAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
-// --- STYLES COMPONENT (Added styles for total price box) --- //
 const DashboardStyles = () => (
   <style>{`
-    :root { 
-      --primary-blue: #5b21b6;
-      --primary-blue-dark: #3b0764;
-      --bg-gray: #fdfbff;
-      --text-dark: #0f172a;
-      --text-light: #334155;
-      --text-muted: #64748b;
-      --border-color: #9f8bf5;
-      --white: #f5e1ff;
-      --red: #dc2626;
-      --red-dark: #991b1b;
-      --green: #16a34a;
-      --green-dark: #15803d;
-      --shadow: 0 6px 10px rgba(30, 58, 138, 0.15);
-      --font-family: 'Poppins', 'Inter', 'Segoe UI', Roboto, sans-serif;
-    }
-
-    body { 
-      font-family: var(--font-family);
-      margin: 0;
-      background-color: var(--bg-gray);
-      overscroll-behavior: none;
-    }
-
-    .dashboard-container { /* Container Styles (Unchanged) */
+    .dashboard-container {
       display: flex;
       height: 100vh;
+      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
       overflow: hidden;
-      background-color: var(--bg-gray);
-      overscroll-behavior: none;
     }
 
-    /* Sidebar (Unchanged) */
-    .sidebar { width: 256px; background-color: var(--white); box-shadow: var(--shadow); display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; }
-    .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
-    .sidebar-title { font-size: 1.875rem; font-weight: 700; color: var(--primary-blue); letter-spacing: 0.05em; }
-    .sidebar-subtitle { font-size: 0.875rem; color: var(--text-muted); }
-    .sidebar-nav { flex-grow: 1; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-    .sidebar-link { display: flex; align-items: center; padding: 0.75rem 1rem; color: var(--text-dark); border-radius: 0.5rem; transition: all 0.2s ease-in-out; cursor: pointer; border: none; background: none; text-align: left; font-family: inherit; font-size: inherit; width: 100%; }
-    .sidebar-link svg { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; flex-shrink: 0; }
-    .sidebar-link:hover { background-color: #f3f4f6; }
-    .sidebar-link.active { background-color: var(--primary-blue); color: var(--white); }
-
-    /* Main Content Area (Unchanged) */
-    .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-    /* Header (Unchanged) */
-    .header { background-color: var(--white); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
-    .header-title { font-size: 1.25rem; font-weight: 600; color: var(--text-dark); }
-    .btn-logout { background-color: var(--red); color: var(--white); font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: background-color 0.2s; display: flex; align-items: center; gap: 0.5rem; }
-    .btn-logout svg { width: 1.1rem; height: 1.1rem; }
-    .btn-logout:hover { background-color: var(--red-dark); }
-
-    /* Page Content Area (Unchanged) */
-    .page-content { padding: 1.5rem; flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; }
-
-    /* Card (Unchanged) */
-    .card { background-color: var(--white); padding: 1.5rem; border-radius: 0.75rem; box-shadow: var(--shadow); width: 100%; box-sizing: border-box; }
-
-    /* Generic Button (Unchanged) */
-    .btn { background-color: var(--primary-blue); color: var(--white); font-weight: 700; padding: 0.75rem 1.5rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: background-color 0.2s; font-size: 1rem; box-sizing: border-box; }
-    .btn:hover { background-color: var(--primary-blue-dark); }
-    .btn-green { background-color: var(--green); }
-    .btn-green:hover { background-color: var(--green-dark); }
-    .btn:disabled { background-color: #9ca3af; cursor: not-allowed; opacity: 0.7; }
-    /* --- Make Create Account button full width --- */
-    .create-account-btn { width: 100%; display: block; }
-
-
-    /* Form Styles (Unchanged) */
-    .form-group { margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
-    .form-group label { font-weight: 500; color: var(--text-light); font-size: 0.875rem; }
-    .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 1rem; width: 100%; box-sizing: border-box; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.3); }
-
-    /* Page Title/Description (Unchanged) */
-    .page-title { margin-bottom: 0.5rem; font-size: 1.5rem; font-weight: 600; color: var(--text-dark); }
-    .page-description { margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.9rem; }
-
-    /* Success Message (Unchanged) */
-    .success-msg { color: var(--green-dark); background-color: #dcfce7; border: 1px solid var(--green); padding: 0.75rem 1rem; border-radius: 0.375rem; font-weight: 500; margin-top: 1.5rem; text-align: center; font-size: 0.9rem; }
-
-    /* Table Styles (Unchanged) */
-    .table-container { overflow-x: auto; width: 100%; }
-    .table { width: 100%; border-collapse: collapse; min-width: 600px; font-size: 0.875rem; }
-    .table th, .table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
-    .table th { font-weight: 600; color: var(--text-light); background-color: #f3e8ff; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
-    .table tbody tr:hover { background-color: #faf5ff; }
-    .table-empty-row td { text-align: center; padding: 2rem; color: var(--text-muted); font-style: italic; border-bottom: none; }
-    .status-badge { padding: 0.25rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 9999px; text-transform: capitalize; background-color: #fef9c3; color: #854d0e; display: inline-block; }
-    .table-footer { margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    .verify-all-container { display: flex; align-items: center; gap: 0.5rem; cursor: pointer;}
-    .verify-all-container input[type="checkbox"] { width: 1.1rem; height: 1.1rem; cursor: pointer; }
-    .verify-all-container label { font-size: 0.9rem; font-weight: 500; color: var(--text-dark); cursor: pointer; }
-
-    /* Vendor Status Page Styles (Unchanged) */
-    .status-available { color: var(--green-dark); font-weight: 600; }
-    .status-unavailable { color: var(--red-dark); font-weight: 600; }
-    /* --- ADDED: Total Price Box Style --- */
-    .total-price-box {
-        margin-top: 1.5rem;
-        margin-left: auto; /* Align to the right */
-        padding: 1rem 1.5rem;
-        background-color: var(--white);
-        border-radius: 0.5rem;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow);
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--text-dark);
-        display: inline-block; /* Fit content width */
-        min-width: 150px; /* Minimum width */
-        text-align: right;
-    }
-    .total-price-box span {
-        font-weight: 700;
-        color: var(--primary-blue);
+    .sidebar {
+      width: 280px;
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-md);
     }
 
+    .sidebar-header {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-light);
+      background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+    }
 
-    /* Media Queries (Unchanged) */
+    .sidebar-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--primary-700);
+      letter-spacing: -0.01em;
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .sidebar-subtitle {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-md);
+      color: var(--text-secondary);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all var(--transition-base);
+      border: none;
+      background: none;
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: 500;
+    }
+
+    .sidebar-link:hover {
+      background: var(--bg-secondary);
+      color: var(--primary-600);
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+      color: var(--text-inverse);
+      box-shadow: var(--shadow-md);
+    }
+
+    .sidebar-link svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .header {
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-default);
+      padding: var(--spacing-lg) var(--spacing-2xl);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-title {
+      font-size: var(--text-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .btn-logout {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      background: var(--danger-500);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: var(--text-sm);
+      transition: all var(--transition-fast);
+    }
+
+    .btn-logout:hover {
+      background: var(--danger-600);
+      transform: translateY(-2px);
+    }
+
+    .btn-theme-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all var(--transition-fast);
+    }
+
+    .btn-theme-toggle:hover {
+      background: var(--bg-tertiary);
+      color: var(--primary-600);
+    }
+
+    .page-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--spacing-2xl);
+      min-height: 0;
+    }
+
+    .page-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-2xl);
+    }
+
+    .page-title {
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .page-description {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+
+    .card {
+      background: var(--bg-primary);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-2xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border-light);
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--spacing-lg);
+      margin-bottom: var(--spacing-2xl);
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-lg);
+      border: 1px solid var(--border-light);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .stat-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      color: var(--primary-700);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .form-label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .form-input, .form-select {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      transition: all var(--transition-fast);
+    }
+
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--primary-500);
+      box-shadow: 0 0 0 3px var(--primary-100);
+    }
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th {
+      background: var(--bg-secondary);
+      padding: var(--spacing-md);
+      text-align: left;
+      font-weight: 600;
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      border-bottom: 2px solid var(--border-default);
+    }
+
+    .table td {
+      padding: var(--spacing-md);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .table tbody tr:hover {
+      background: var(--bg-secondary);
+    }
+    
+    .table tbody tr {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-sm);
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: var(--text-sm);
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: var(--text-xs);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%);
+    }
+
+    .btn-danger {
+      background: var(--danger-600);
+    }
+
+    .btn-danger:hover {
+      background: var(--danger-700);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: var(--spacing-xs) var(--spacing-md);
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .status-pending {
+      background: var(--warning-50);
+      color: var(--warning-700);
+    }
+
+    .status-approved {
+      background: var(--success-50);
+      color: var(--success-700);
+    }
+
+    .status-rejected {
+      background: var(--danger-50);
+      color: var(--danger-700);
+    }
+
+    .status-completed {
+      background: var(--success-50);
+      color: var(--success-700);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: var(--spacing-sm);
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 768px) {
-      .sidebar { }
-      .header { padding: 0.75rem 1rem; }
-      .page-content { padding: 1rem; }
-      .card { padding: 1rem; }
-      .btn { padding: 0.75rem 1rem; }
-      .table-footer { justify-content: center; }
-      .total-price-box { margin-left: 0; width: 100%; text-align: center; } /* Full width on mobile */
-    }
+      .dashboard-container {
+        flex-direction: column;
+      }
 
-    /* Print Styles for Invoice */
-    @media print {
-      body * {
-        visibility: hidden;
-      }
-      .invoice-modal, .invoice-modal * {
-        visibility: visible;
-      }
-      .invoice-modal {
-        position: absolute;
-        left: 0;
-        top: 0;
+      .sidebar {
         width: 100%;
+        min-height: auto;
+        flex-direction: column;
+        border-right: none;
+        border-bottom: 1px solid var(--border-default);
       }
-      button {
-        display: none !important;
+
+      .sidebar-header {
+        padding: var(--spacing-md) var(--spacing-lg);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .sidebar-title {
+        font-size: 1.25rem;
+        margin: 0;
+      }
+
+      .sidebar-nav {
+        flex-direction: row;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .sidebar-nav::-webkit-scrollbar {
+        display: none;
+      }
+
+      .sidebar-link {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--text-xs);
+        white-space: nowrap;
+      }
+
+      .main-content {
+        flex: 1;
+      }
+
+      .header {
+        padding: var(--spacing-md) var(--spacing-lg);
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--spacing-md);
+      }
+
+      .header-title {
+        font-size: var(--text-base);
+      }
+
+      .page-content {
+        padding: var(--spacing-lg);
+      }
+
+      .table-container {
+        font-size: 0.875rem;
+        overflow-x: auto;
+      }
+
+      table {
+        font-size: var(--text-xs);
+      }
+
+      th, td {
+        padding: 0.5rem;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        padding: var(--spacing-md);
       }
     }
-
   `}</style>
 );
 
-// --- SVG icons (Unchanged) ---
-const ViewOrdersIcon = () => ( /* ... icon svg ... */ <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002-2h2a2 2 0 002 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>);
-const HistoryIcon = () => ( /* ... icon svg ... */ <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>);
-const UserAddIcon = () => ( /* ... icon svg ... */ <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" > <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" /> </svg>);
-const LogoutIcon = () => ( /* ... icon svg ... */ <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>);
-const StatusIcon = () => ( /* ... icon svg ... */ <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 019 9v.375M10.125 2.25A3.375 3.375 0 0113.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 013.375 3.375M9 15l2.25 2.25L15 12" /></svg>);
+const Sidebar = ({ activePage, setActivePage }) => {
+  const links = [
+    { id: 'view-orders', label: 'View Orders', icon: Eye },
+    { id: 'vendor-status', label: 'Vendor Status', icon: AlertCircle },
+    { id: 'history', label: 'History', icon: Clock },
+    { id: 'create-account', label: 'Create Account', icon: Plus }
+  ];
 
-// --- Sidebar (Unchanged) ---
-const Sidebar = ({ activePage, setActivePage }) => { /* ... sidebar jsx ... */ const linkClasses = (page) => `sidebar-link ${activePage === page ? 'active' : ''}`; return ( <aside className="sidebar"> <div className="sidebar-header"> <h1 className="sidebar-title">FUMU</h1> <p className="sidebar-subtitle">Admin Portal</p> </div> <nav className="sidebar-nav"> <button onClick={() => setActivePage('view-orders')} className={linkClasses('view-orders')}> <ViewOrdersIcon /> View Orders </button> <button onClick={() => setActivePage('vendor-status')} className={linkClasses('vendor-status')}> <StatusIcon /> Vendor Status </button> <button onClick={() => setActivePage('history')} className={linkClasses('history')}> <HistoryIcon /> Order History </button> <button onClick={() => setActivePage('create-account')} className={linkClasses('create-account')}> <UserAddIcon /> Create Account </button> </nav> </aside> );};
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <div className="sidebar-title">FUMU</div>
+        <div className="sidebar-subtitle">Admin Portal</div>
+      </div>
+      <nav className="sidebar-nav">
+        {links.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            className={`sidebar-link ${activePage === id ? 'active' : ''}`}
+            onClick={() => setActivePage(id)}
+          >
+            <Icon size={20} />
+            {label}
+          </button>
+        ))}
+      </nav>
+    </aside>
+  );
+};
 
-// --- Header (Unchanged) ---
-const Header = ({ onLogout }) => ( /* ... header jsx ... */ <header className="header"> <h2 className="header-title">Welcome, Admin!</h2> <button className="btn-logout" onClick={onLogout}> <LogoutIcon /> Logout </button> </header>);
+const Header = ({ onLogout }) => {
+  const { theme, toggleTheme } = useTheme();
+  
+  return (
+    <header className="header">
+      <h2 className="header-title">Welcome, Admin</h2>
+      <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
+        <button 
+          className="btn-theme-toggle" 
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+        >
+          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+        <button className="btn-logout" onClick={onLogout}>
+          <LogOut size={18} />
+          Logout
+        </button>
+      </div>
+    </header>
+  );
+};
 
-// --- UPDATED: View Orders Page (Removed Status Column) ---
 const ViewOrdersPage = () => {
   const [orders, setOrders] = React.useState([]);
-  const [rawRequests, setRawRequests] = React.useState([]);
+  const [approvedOrders, setApprovedOrders] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [isVerified, setIsVerified] = React.useState(false);
-  const [error, setError] = React.useState('');
-  const [success, setSuccess] = React.useState('');
-  const [lastOrder, setLastOrder] = React.useState(null);
-  const [loadingLastOrder, setLoadingLastOrder] = React.useState(true);
-  const [editingRequest, setEditingRequest] = React.useState(null);
-
-  // Check if all requests are approved or rejected (no pending)
-  const allRequestsProcessed = rawRequests.length > 0 && 
-    rawRequests.every(req => req.status === 'approved' || req.status === 'rejected');
-  
-  // Check if at least one request is approved
-  const hasApprovedRequests = rawRequests.some(req => req.status === 'approved');
+  const [error, setError] = React.useState(null);
+  const [compiling, setCompiling] = React.useState(false);
 
   React.useEffect(() => {
-    fetchPendingOrders();
-    fetchLastOrder();
+    loadPendingOrders();
   }, []);
 
-  const fetchLastOrder = async () => {
-    setLoadingLastOrder(true);
+  const loadPendingOrders = async () => {
     try {
-      const { adminAPI } = await import('../services/api');
-      const compiledOrders = await adminAPI.getCompiledOrders();
-      if (compiledOrders && compiledOrders.length > 0) {
-        // Get the most recent order
-        setLastOrder(compiledOrders[0]);
-      }
-    } catch (err) {
-      console.error('Error fetching last order:', err);
-    } finally {
-      setLoadingLastOrder(false);
-    }
-  };
-
-  const fetchPendingOrders = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const { adminAPI } = await import('../services/api');
-      const data = await adminAPI.getPendingOrders();
+      setLoading(true);
+      setError(null);
+      console.log('Loading pending and approved orders...');
+      const response = await adminAPI.getPendingOrders();
+      console.log('Full response:', response);
+      console.log('Raw requests:', response.raw_requests);
       
-      // Store raw requests with editable state
-      const transformedRequests = data.raw_requests?.map(req => ({
-        ...req,
-        id: req.id,
-        approved_quantity: req.approved_quantity || req.quantity,
-        isEditing: false
-      })) || [];
+      const pendingReqs = response.raw_requests?.filter(r => r.status === 'pending') || [];
+      const approvedReqs = response.raw_requests?.filter(r => r.status === 'approved') || [];
       
-      setRawRequests(transformedRequests);
-      updateMergedOrders(transformedRequests);
-    } catch (err) {
-      console.error('Error fetching pending orders:', err);
-      setError('Failed to load pending orders');
+      console.log('Pending orders count:', pendingReqs.length);
+      console.log('Approved orders count:', approvedReqs.length);
+      console.log('Approved orders:', approvedReqs);
+      
+      setOrders(pendingReqs);
+      setApprovedOrders(approvedReqs);
+    } catch (error) {
+      console.error('Error loading pending orders:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load pending orders';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateMergedOrders = (requests) => {
-    // Calculate merged items based on approved quantities
-    const mergedDict = {};
-    requests.forEach(req => {
-      const key = `${req.item_name}_${req.unit}`;
-      const qtyToUse = req.status === 'approved' ? (req.approved_quantity || req.quantity) : 
-                       req.status === 'pending' ? req.quantity : 0;
-      
-      if (qtyToUse > 0) {
-        if (mergedDict[key]) {
-          mergedDict[key].total_quantity += qtyToUse;
-          mergedDict[key].kitchens.add(req.kitchen);
-        } else {
-          mergedDict[key] = {
-            itemName: req.item_name,
-            total_quantity: qtyToUse,
-            unit: req.unit,
-            kitchens: new Set([req.kitchen])
-          };
-        }
-      }
-    });
-    
-    // Transform to display format
-    const transformedOrders = Object.values(mergedDict).map(item => ({
-      itemName: item.itemName,
-      quantity: `${item.total_quantity} ${item.unit}`,
-      kitchen: Array.from(item.kitchens).join(', '),
-      total_quantity: item.total_quantity,
-      unit: item.unit
-    }));
-    
-    setOrders(transformedOrders);
-  };
-
-  const handleUpdateRequest = async (requestId, status, approvedQuantity) => {
-    setError('');
-    try {
-      const response = await fetch(`/api/admin/orders/request/${requestId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          status,
-          approved_quantity: approvedQuantity
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to update request');
-      }
-
-      // Update local state immediately for responsive UI
-      const updatedRequests = rawRequests.map(r =>
-        r.id === requestId ? { ...r, status, approved_quantity: approvedQuantity } : r
-      );
-      setRawRequests(updatedRequests);
-      updateMergedOrders(updatedRequests);
-      
-      setSuccess(`Request ${status} successfully`);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Error updating request:', err);
-      setError(err.message || 'Failed to update request');
-    }
-  };
-
-  const handleApprove = (requestId, approvedQuantity) => {
-    handleUpdateRequest(requestId, 'approved', approvedQuantity);
-    setEditingRequest(null);
-  };
-
-  const handleReject = (requestId) => {
-    handleUpdateRequest(requestId, 'rejected', 0);
-    setEditingRequest(null);
-  };
-
-  const handleApproveAll = async () => {
-    setError('');
-    try {
-      const pendingRequests = rawRequests.filter(req => req.status === 'pending');
-      
-      if (pendingRequests.length === 0) {
-        setError('No pending requests to approve');
-        return;
-      }
-
-      // Approve all pending requests with their full requested quantity
-      const approvalPromises = pendingRequests.map(req =>
-        fetch(`/api/admin/orders/request/${req.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            status: 'approved',
-            approved_quantity: req.quantity
-          })
-        })
-      );
-
-      await Promise.all(approvalPromises);
-
-      // Update local state
-      const updatedRequests = rawRequests.map(r =>
-        r.status === 'pending' ? { ...r, status: 'approved', approved_quantity: r.quantity } : r
-      );
-      setRawRequests(updatedRequests);
-      updateMergedOrders(updatedRequests);
-
-      setSuccess('All pending requests approved successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Error approving all requests:', err);
-      setError('Failed to approve all requests');
-    }
-  };
-
-  const handleSendToVendor = async () => {
-    setError('');
-    setSuccess('');
-    
-    // Check if all requests are processed
-    if (!allRequestsProcessed) {
-      setError('Please approve or reject all pending requests before sending to vendor');
+  const handleCompileOrders = async () => {
+    if (approvedOrders.length === 0) {
+      toast.error('No approved orders to compile');
       return;
     }
 
-    // Check if at least one request is approved
-    if (!hasApprovedRequests) {
-      setError('No approved requests to send to vendor. Please approve at least one request.');
-      return;
-    }
-    
     try {
-      const { adminAPI } = await import('../services/api');
+      setCompiling(true);
+      console.log('Compiling approved orders...');
       
-      // Recalculate merged items based on approved requests only
-      const approvedRequests = rawRequests.filter(req => req.status === 'approved');
-      
-      // Merge approved quantities by item and unit
-      const mergedApproved = {};
-      approvedRequests.forEach(req => {
-        const key = `${req.item_name}_${req.unit}`;
-        if (mergedApproved[key]) {
-          mergedApproved[key].total_quantity += (req.approved_quantity || req.quantity);
+      // Group items by name and unit
+      const mergedItems = {};
+      approvedOrders.forEach(order => {
+        const key = `${order.item_name}_${order.unit}`;
+        if (mergedItems[key]) {
+          mergedItems[key].total_quantity += order.approved_quantity || order.quantity;
         } else {
-          mergedApproved[key] = {
-            item_name: req.item_name,
-            total_quantity: req.approved_quantity || req.quantity,
-            unit: req.unit
+          mergedItems[key] = {
+            item_name: order.item_name,
+            total_quantity: order.approved_quantity || order.quantity,
+            unit: order.unit
           };
         }
       });
-      
-      // Prepare order data for compilation with approved quantities
-      const orderData = {
-        items: Object.values(mergedApproved)
+
+      const compilePayload = {
+        items: Object.values(mergedItems)
       };
       
-      const response = await adminAPI.compileOrder(orderData);
-      setSuccess(response.message || 'Order sent to vendor successfully!');
-      setIsVerified(false);
-
-      // Refresh the orders list and last order
-      setTimeout(() => {
-        fetchPendingOrders();
-        fetchLastOrder();
-        setSuccess('');
-      }, 2000);
-    } catch (err) {
-      console.error('Error sending order to vendor:', err);
-      setError(err.response?.data?.detail || 'Failed to send order to vendor');
+      console.log('Compile payload:', compilePayload);
+      const response = await adminAPI.compileOrder(compilePayload);
+      console.log('Compile response:', response);
+      
+      toast.success(`Orders compiled! Total items: ${Object.values(mergedItems).length}`);
+      loadPendingOrders();
+    } catch (error) {
+      console.error('Error compiling orders:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to compile orders';
+      toast.error(`Error: ${errorMsg}`);
+    } finally {
+      setCompiling(false);
     }
   };
 
   return (
-    <>
+    <div className="page-section">
       <div>
-        <h3 className="page-title">Pending Orders Overview</h3>
-        <p className="page-description">Review individual requests below. Approve/reject each request, then send approved orders to vendor.</p>
+        <h1 className="page-title">Manage Orders</h1>
+        <p className="page-description">Review pending orders, approve/reject, and compile to send to vendor.</p>
       </div>
 
-      {/* Last Order Status Section */}
-      {lastOrder && (
-        <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: '#f0f9ff', borderLeft: '4px solid var(--primary-blue)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-dark)', margin: 0 }}>
-              Last Order Sent
-            </h4>
-            <span style={{
-              padding: '0.25rem 0.75rem',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              textTransform: 'capitalize',
-              backgroundColor: lastOrder.status === 'completed' ? '#dcfce7' : lastOrder.status === 'pending' ? '#fef3c7' : '#fee2e2',
-              color: lastOrder.status === 'completed' ? '#166534' : lastOrder.status === 'pending' ? '#854d0e' : '#991b1b'
-            }}>
-              {lastOrder.status}
-            </span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '0.9rem' }}>
-            <div>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Date:</span>{' '}
-              <span style={{ color: 'var(--text-dark)' }}>{new Date(lastOrder.created_at).toLocaleDateString()}</span>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Total Items:</span>{' '}
-              <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{lastOrder.total_items}</span>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Total Price:</span>{' '}
-              <span style={{ color: lastOrder.total_price ? 'var(--green-dark)' : 'var(--text-muted)', fontWeight: 600 }}>
-                {lastOrder.total_price ? `₹${lastOrder.total_price.toFixed(2)}` : 'Pending'}
-              </span>
-            </div>
-          </div>
-          {lastOrder.orders && lastOrder.orders.length > 0 && (
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 500 }}>Items:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {lastOrder.orders.map((item, idx) => (
-                  <span key={idx} style={{
-                    padding: '0.25rem 0.75rem',
-                    backgroundColor: 'var(--white)',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.8rem',
-                    color: 'var(--text-dark)',
-                    border: '1px solid var(--border-color)'
-                  }}>
-                    {item.item_name} ({item.delivered_quantity || item.total_quantity} {item.unit || 'kg'})
-                    {item.total_price && <span style={{ color: 'var(--green-dark)', marginLeft: '0.25rem' }}>₹{item.total_price.toFixed(2)}</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+      {error && (
+        <div style={{
+          padding: 'var(--spacing-lg)',
+          marginBottom: 'var(--spacing-lg)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--danger-50)',
+          border: '1px solid var(--danger-200)',
+          color: 'var(--danger-700)',
+          fontSize: 'var(--text-sm)'
+        }}>
+          <strong>Error:</strong> {error}
+          <button 
+            onClick={loadPendingOrders}
+            style={{
+              marginLeft: 'var(--spacing-md)',
+              background: 'var(--danger-600)',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              fontSize: 'var(--text-sm)'
+            }}
+          >
+            Retry
+          </button>
         </div>
       )}
 
-      {error && (
-        <p style={{
-          color: 'var(--red-dark)',
-          backgroundColor: '#fee2e2',
-          border: '1px solid var(--red)',
-          padding: '0.75rem 1rem',
-          borderRadius: '0.375rem',
-          fontWeight: '500',
-          marginBottom: '1rem',
-          textAlign: 'center',
-          fontSize: '0.9rem'
-        }}>
-          {error}
-        </p>
-      )}
-      
-      {success && <p className="success-msg">{success}</p>}
-
-      {/* Individual Requests Section - Show First */}
-      {rawRequests.length > 0 && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h4 className="page-title" style={{ marginBottom: '0.5rem', fontSize: '1.25rem' }}>
-                Individual Kitchen Requests
-              </h4>
-              <p className="page-description" style={{ marginBottom: 0 }}>
-                Review and approve/reject individual requests from each kitchen. Edit quantities before approving.
-              </p>
-            </div>
-            {rawRequests.some(req => req.status === 'pending') && (
-              <button
-                onClick={handleApproveAll}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  backgroundColor: '#22c55e',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#16a34a'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#22c55e'}
-              >
-                ✓ Approve All Pending
-              </button>
-            )}
+      {/* Pending Orders Section */}
+      <div className="card" style={{ marginBottom: 'var(--spacing-2xl)' }}>
+        <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 'var(--spacing-lg)', fontWeight: 600 }}>Pending Orders</h2>
+        {loading ? (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading orders...
           </div>
+        ) : orders.length > 0 ? (
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Item</th>
+                  <th>Stall</th>
                   <th>Kitchen</th>
-                  <th>Requested</th>
-                  <th>Approved Qty</th>
+                  <th>Item</th>
+                  <th>Quantity</th>
+                  <th>Unit</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {rawRequests.map((req, index) => (
-                  <tr key={req.id || index}>
-                    <td>{req.item_name}</td>
-                    <td>{req.kitchen}</td>
-                    <td>{req.quantity} {req.unit}</td>
+                {orders.map((order) => (
+                  <tr key={order.id}>
+                    <td>{order.stall_name}</td>
+                    <td>{order.kitchen}</td>
+                    <td>{order.item_name}</td>
+                    <td>{order.quantity}</td>
+                    <td>{order.unit}</td>
                     <td>
-                      {req.status === 'pending' && editingRequest === req.id ? (
-                        <input
-                          type="number"
-                          min="0"
-                          max={req.quantity}
-                          value={req.approved_quantity}
-                          onChange={(e) => {
-                            const newRequests = rawRequests.map(r =>
-                              r.id === req.id ? { ...r, approved_quantity: parseInt(e.target.value) || 0 } : r
-                            );
-                            setRawRequests(newRequests);
-                          }}
-                          style={{
-                            width: '80px',
-                            padding: '0.25rem',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '0.25rem'
-                          }}
-                        />
-                      ) : (
-                        <span>{req.approved_quantity || req.quantity} {req.unit}</span>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        textTransform: 'capitalize',
-                        backgroundColor: 
-                          req.status === 'approved' ? '#dcfce7' : 
-                          req.status === 'rejected' ? '#fee2e2' : '#fef3c7',
-                        color: 
-                          req.status === 'approved' ? '#166534' : 
-                          req.status === 'rejected' ? '#991b1b' : '#854d0e'
-                      }}>
-                        {req.status}
+                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
+                        {order.status}
                       </span>
                     </td>
                     <td>
-                      {req.status === 'pending' && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          {editingRequest === req.id ? (
-                            <>
-                              <button
-                                onClick={() => {
-                                  handleApprove(req.id, req.approved_quantity);
-                                  setEditingRequest(null);
-                                }}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  backgroundColor: '#22c55e',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '0.25rem',
-                                  cursor: 'pointer',
-                                  fontSize: '0.875rem'
-                                }}
-                              >
-                                ✓ Approve
-                              </button>
-                              <button
-                                onClick={() => setEditingRequest(null)}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  backgroundColor: '#6b7280',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '0.25rem',
-                                  cursor: 'pointer',
-                                  fontSize: '0.875rem'
-                                }}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => setEditingRequest(req.id)}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  backgroundColor: '#3b82f6',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '0.25rem',
-                                  cursor: 'pointer',
-                                  fontSize: '0.875rem'
-                                }}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleApprove(req.id, req.quantity)}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  backgroundColor: '#22c55e',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '0.25rem',
-                                  cursor: 'pointer',
-                                  fontSize: '0.875rem'
-                                }}
-                              >
-                                ✓
-                              </button>
-                              <button
-                                onClick={() => handleReject(req.id)}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  backgroundColor: '#ef4444',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '0.25rem',
-                                  cursor: 'pointer',
-                                  fontSize: '0.875rem'
-                                }}
-                              >
-                                ✗
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      <div className="action-buttons">
+                        <button 
+                          className="btn btn-small btn-success"
+                          onClick={async () => {
+                            try {
+                              console.log('Approving order:', order.id);
+                              console.log('Order data:', order);
+                              const response = await adminAPI.updateRequestStatus(order.id, { status: 'approved', approved_quantity: order.quantity });
+                              console.log('Approval response:', response);
+                              console.log('Order approved successfully');
+                              toast.success('Order approved!');
+                              // Add delay to ensure database is updated
+                              await new Promise(resolve => setTimeout(resolve, 500));
+                              loadPendingOrders();
+                            } catch (error) {
+                              console.error('Error approving:', error);
+                              console.error('Error response:', error.response?.data);
+                              toast.error(`Error: ${error.response?.data?.detail || error.message}`);
+                            }
+                          }}
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          className="btn btn-small btn-danger"
+                          onClick={async () => {
+                            try {
+                              console.log('Rejecting order:', order.id);
+                              await adminAPI.updateRequestStatus(order.id, { status: 'rejected' });
+                              console.log('Order rejected successfully');
+                              toast.success('Order rejected!');
+                              loadPendingOrders();
+                            } catch (error) {
+                              console.error('Error rejecting:', error);
+                              toast.error(`Error: ${error.response?.data?.detail || error.message}`);
+                            }
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No pending orders to review.
+          </div>
+        )}
+      </div>
 
-      {/* Merged Summary Section */}
-      {orders.length > 0 && (
-        <div className="card" style={{ marginTop: '2rem', backgroundColor: '#f0f9ff', border: '2px solid var(--primary-blue)' }}>
-          <h4 className="page-title" style={{ marginBottom: '1rem', fontSize: '1.25rem', color: 'var(--primary-blue)' }}>
-            📊 Merged Orders Summary (Based on Approved Items)
-          </h4>
-          <p className="page-description" style={{ marginBottom: '1rem' }}>
-            This summary shows the total quantities to be sent to the vendor based on your approved requests.
-          </p>
+      {/* Approved Orders Section */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+          <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, margin: 0 }}>Approved Orders ({approvedOrders.length})</h2>
+          {approvedOrders.length > 0 && (
+            <button 
+              className="btn btn-success"
+              onClick={handleCompileOrders}
+              disabled={compiling}
+              style={{ background: 'linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%)' }}
+            >
+              {compiling ? 'Compiling...' : 'Compile & Send to Vendor'}
+            </button>
+          )}
+        </div>
+        {approvedOrders.length > 0 ? (
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Item Name</th>
-                  <th>Kitchens</th>
-                  <th>Total Quantity</th>
+                  <th>Stall</th>
+                  <th>Kitchen</th>
+                  <th>Item</th>
+                  <th>Approved Qty</th>
+                  <th>Unit</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order, index) => (
-                  <tr key={`${order.itemName}-${index}`}>
-                    <td><strong>{order.itemName}</strong></td>
+                {approvedOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td>{order.stall_name}</td>
                     <td>{order.kitchen}</td>
-                    <td><strong>{order.quantity}</strong></td>
+                    <td>{order.item_name}</td>
+                    <td>{order.approved_quantity || order.quantity}</td>
+                    <td>{order.unit}</td>
+                    <td>
+                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
+                        {order.status}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {/* Send to Vendor Section */}
-      {rawRequests.length > 0 && (
-        <div className="card" style={{ marginTop: '1.5rem' }}>
-          {!allRequestsProcessed && (
-            <div style={{
-              backgroundColor: '#fef3c7',
-              border: '1px solid #f59e0b',
-              borderRadius: '0.5rem',
-              padding: '1rem',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <span style={{ fontSize: '1.25rem' }}>⚠️</span>
-              <span style={{ color: '#92400e', fontWeight: 500 }}>
-                Please approve or reject all pending requests before sending to vendor.
-                {rawRequests.filter(req => req.status === 'pending').length} requests remaining.
-              </span>
-            </div>
-          )}
-          <div className="table-footer">
-            <div className="verify-all-container" onClick={() => allRequestsProcessed && setIsVerified(!isVerified)}>
-              <input
-                type="checkbox"
-                id="verify-all-checkbox"
-                checked={isVerified}
-                disabled={!allRequestsProcessed || !hasApprovedRequests}
-                onChange={(e) => setIsVerified(e.target.checked)}
-              />
-              <label htmlFor="verify-all-checkbox" style={{ 
-                opacity: !allRequestsProcessed || !hasApprovedRequests ? 0.5 : 1,
-                cursor: !allRequestsProcessed || !hasApprovedRequests ? 'not-allowed' : 'pointer'
-              }}>
-                I have verified and approved all necessary items.
-              </label>
-            </div>
-            <button
-              className="btn btn-green"
-              onClick={handleSendToVendor}
-              disabled={!isVerified || !allRequestsProcessed || !hasApprovedRequests}
-              style={{
-                opacity: (!isVerified || !allRequestsProcessed || !hasApprovedRequests) ? 0.5 : 1,
-                cursor: (!isVerified || !allRequestsProcessed || !hasApprovedRequests) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Send Approved Orders to Vendor
-            </button>
+        ) : (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No approved orders. Approve pending orders first.
           </div>
-        </div>
-      )}
-    </>
-  );
-};
-
-// --- Invoice Modal Component ---
-const InvoiceModal = ({ order, onClose }) => {
-  if (!order) return null;
-
-  const totalAmount = order.total_price || 0;
-  const currentDate = new Date().toLocaleDateString();
-  const orderDate = new Date(order.created_at).toLocaleDateString();
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '1rem'
-    }}>
-      <div className="invoice-modal" style={{
-        backgroundColor: 'white',
-        borderRadius: '0.75rem',
-        maxWidth: '800px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflow: 'auto',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-      }}>
-        {/* Invoice Header */}
-        <div style={{
-          padding: '2rem',
-          borderBottom: '2px solid var(--primary-blue)',
-          backgroundColor: '#f9fafb'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-            <div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-blue)', margin: 0 }}>
-                INVOICE
-              </h2>
-              <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>FUMU - Food Management System</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
-                <strong>Invoice #:</strong> {order.id.substring(0, 8).toUpperCase()}
-              </p>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
-                <strong>Date:</strong> {currentDate}
-              </p>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>
-                <strong>Order Date:</strong> {orderDate}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Invoice Body */}
-        <div style={{ padding: '2rem' }}>
-          {/* Order Info */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1.5rem',
-            marginBottom: '2rem',
-            padding: '1rem',
-            backgroundColor: '#f9fafb',
-            borderRadius: '0.5rem'
-          }}>
-            <div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                Order Status
-              </p>
-              <span style={{
-                padding: '0.25rem 0.75rem',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                textTransform: 'capitalize',
-                backgroundColor: order.status === 'completed' ? '#dcfce7' : order.status === 'pending' ? '#fef3c7' : '#fee2e2',
-                color: order.status === 'completed' ? '#166534' : order.status === 'pending' ? '#854d0e' : '#991b1b'
-              }}>
-                {order.status}
-              </span>
-            </div>
-            <div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                Total Items
-              </p>
-              <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-dark)', margin: 0 }}>
-                {order.total_items}
-              </p>
-            </div>
-            <div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                Vendor ID
-              </p>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-dark)', margin: 0 }}>
-                {order.vendor_id ? order.vendor_id.substring(0, 8).toUpperCase() : 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          {/* Items Table */}
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            marginBottom: '2rem'
-          }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid var(--border-color)' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Item Name
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Quantity
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Delivered
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Unit Price
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.orders?.map((item, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
-                    <strong>{item.item_name}</strong>
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
-                    {item.total_quantity} {item.unit || 'kg'}
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
-                    {item.delivered_quantity ? `${item.delivered_quantity} ${item.unit || 'kg'}` : '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', color: 'var(--text-dark)' }}>
-                    {item.unit_price ? `₹${item.unit_price.toFixed(2)}` : '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)' }}>
-                    {item.total_price ? `₹${item.total_price.toFixed(2)}` : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Total Section */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            padding: '1.5rem',
-            backgroundColor: '#f9fafb',
-            borderRadius: '0.5rem'
-          }}>
-            <div style={{ minWidth: '300px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Subtotal:</span>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)' }}>
-                  {totalAmount > 0 ? `₹${totalAmount.toFixed(2)}` : 'Pending'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '2px solid var(--primary-blue)' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-dark)' }}>Total Amount:</span>
-                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-blue)' }}>
-                  {totalAmount > 0 ? `₹${totalAmount.toFixed(2)}` : 'Pending'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer Note */}
-          <div style={{
-            marginTop: '2rem',
-            padding: '1rem',
-            backgroundColor: '#f0f9ff',
-            borderLeft: '4px solid var(--primary-blue)',
-            borderRadius: '0.375rem'
-          }}>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-dark)', margin: 0 }}>
-              <strong>Note:</strong> This is a system-generated invoice for internal tracking purposes.
-              {!totalAmount && ' Prices are pending vendor confirmation.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div style={{
-          padding: '1.5rem 2rem',
-          borderTop: '1px solid var(--border-color)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '1rem',
-          backgroundColor: '#f9fafb'
-        }}>
-          <button
-            onClick={() => window.print()}
-            style={{
-              padding: '0.5rem 1.5rem',
-              backgroundColor: 'var(--primary-blue)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.9rem'
-            }}
-          >
-            Print Invoice
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '0.5rem 1.5rem',
-              backgroundColor: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.9rem'
-            }}
-          >
-            Close
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-// --- UPDATED: Vendor Status Page (Shows compiled orders sent to vendor) ---
 const VendorStatusPage = () => {
-    const [compiledOrders, setCompiledOrders] = React.useState([]);
-    const [loading, setLoading] = React.useState(true);
-    const [error, setError] = React.useState('');
-    const [selectedOrder, setSelectedOrder] = React.useState(null);
+  const [compiledOrders, setCompiledOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  const [selectedOrder, setSelectedOrder] = React.useState(null);
 
-    React.useEffect(() => {
-        fetchCompiledOrders();
-    }, []);
-
-    const fetchCompiledOrders = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const { adminAPI } = await import('../services/api');
-            const data = await adminAPI.getCompiledOrders();
-            setCompiledOrders(data || []);
-        } catch (err) {
-            console.error('Error fetching compiled orders:', err);
-            setError('Failed to load compiled orders');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getStatusColor = (status) => {
-        switch (status?.toLowerCase()) {
-            case 'pending': return '#f59e0b';
-            case 'completed': return 'var(--green-dark)';
-            case 'cancelled': return 'var(--red-dark)';
-            default: return 'var(--text-muted)';
-        }
-    };
-
-    return (
-        <>
-            <div>
-                <h3 className="page-title">Compiled Orders Status</h3>
-                <p className="page-description">View all compiled orders that have been sent to vendors.</p>
-            </div>
-            
-            {error && (
-                <p style={{
-                    color: 'var(--red-dark)',
-                    backgroundColor: '#fee2e2',
-                    border: '1px solid var(--red)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.375rem',
-                    fontWeight: '500',
-                    marginBottom: '1rem',
-                    textAlign: 'center',
-                    fontSize: '0.9rem'
-                }}>
-                    {error}
-                </p>
-            )}
-            
-            <div className="card">
-                <div className="table-container">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>Order Date</th>
-                                <th>Total Items</th>
-                                <th>Status</th>
-                                <th>Total Price</th>
-                                <th>Details</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr className="table-empty-row"><td colSpan="6">Loading compiled orders...</td></tr>
-                            ) : compiledOrders.length > 0 ? (
-                                compiledOrders.map((order) => (
-                                    <tr key={order.id}>
-                                        <td>{new Date(order.created_at).toLocaleDateString()}</td>
-                                        <td>{order.total_items}</td>
-                                        <td>
-                                            <span style={{
-                                                color: getStatusColor(order.status),
-                                                fontWeight: 600,
-                                                textTransform: 'capitalize'
-                                            }}>
-                                                {order.status}
-                                            </span>
-                                        </td>
-                                        <td style={{ fontWeight: 600, color: order.total_price ? 'var(--green-dark)' : 'var(--text-muted)' }}>
-                                            {order.total_price ? `₹${order.total_price.toFixed(2)}` : 'Pending'}
-                                        </td>
-                                        <td>
-                                            {order.orders?.map((item, idx) => (
-                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
-                                                    {item.item_name}: {item.total_quantity} {item.unit || 'kg'}
-                                                    {item.delivered_quantity && ` (Delivered: ${item.delivered_quantity} ${item.unit || 'kg'})`}
-                                                    {item.unit_price && ` @ ₹${item.unit_price}/${item.unit || 'unit'}`}
-                                                    {item.total_price && ` = ₹${item.total_price.toFixed(2)}`}
-                                                </div>
-                                            ))}
-                                        </td>
-                                        <td>
-                                            <button
-                                                onClick={() => setSelectedOrder(order)}
-                                                style={{
-                                                    padding: '0.5rem 1rem',
-                                                    backgroundColor: 'var(--primary-blue)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    borderRadius: '0.375rem',
-                                                    fontWeight: 600,
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.875rem',
-                                                    whiteSpace: 'nowrap'
-                                                }}
-                                            >
-                                                View Invoice
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr className="table-empty-row"><td colSpan="6">No compiled orders found.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Invoice Modal */}
-            {selectedOrder && (
-                <InvoiceModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-            )}
-        </>
-    );
-};
-
-
-
-// Order History Page
-const OrderHistoryPage = () => {
-    const [history, setHistory] = React.useState([]);
-    const [loading, setLoading] = React.useState(true);
-    const [error, setError] = React.useState('');
-    const [selectedOrder, setSelectedOrder] = React.useState(null);
-
-    React.useEffect(() => {
-        fetchOrderHistory();
-    }, []);
-
-    const fetchOrderHistory = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const { adminAPI } = await import('../services/api');
-            const data = await adminAPI.getCompiledOrders();
-            setHistory(data || []);
-        } catch (err) {
-            console.error('Error fetching order history:', err);
-            setError('Failed to load order history');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getStatusColor = (status) => {
-        switch (status?.toLowerCase()) {
-            case 'pending': return '#f59e0b';
-            case 'completed': return 'var(--green-dark)';
-            case 'cancelled': return 'var(--red-dark)';
-            default: return 'var(--text-muted)';
-        }
-    };
-
-    return (
-        <>
-            <div>
-                <h3 className="page-title">Order History</h3>
-                <p className="page-description">View all compiled orders sent to vendors.</p>
-            </div>
-            
-            {error && (
-                <p style={{
-                    color: 'var(--red-dark)',
-                    backgroundColor: '#fee2e2',
-                    border: '1px solid var(--red)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.375rem',
-                    fontWeight: '500',
-                    marginBottom: '1rem',
-                    textAlign: 'center',
-                    fontSize: '0.9rem'
-                }}>
-                    {error}
-                </p>
-            )}
-            
-            <div className="card">
-                <div className="table-container">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Total Items</th>
-                                <th>Status</th>
-                                <th>Items</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr className="table-empty-row"><td colSpan="5">Loading...</td></tr>
-                            ) : history.length > 0 ? (
-                                history.map((order) => (
-                                    <tr key={order.id}>
-                                        <td>{new Date(order.created_at).toLocaleString()}</td>
-                                        <td>{order.total_items}</td>
-                                        <td>
-                                            <span style={{ 
-                                                color: getStatusColor(order.status), 
-                                                fontWeight: 600,
-                                                textTransform: 'capitalize'
-                                            }}>
-                                                {order.status}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {order.orders?.map((item, idx) => (
-                                                <div key={idx} style={{ fontSize: '0.85em', padding: '0.2em 0' }}>
-                                                    {item.item_name}: {item.total_quantity} {item.unit || 'kg'}
-                                                </div>
-                                            ))}
-                                        </td>
-                                        <td>
-                                            <button
-                                                onClick={() => setSelectedOrder(order)}
-                                                style={{
-                                                    padding: '0.5rem 1rem',
-                                                    backgroundColor: 'var(--primary-blue)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    borderRadius: '0.375rem',
-                                                    fontWeight: 600,
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.875rem',
-                                                    whiteSpace: 'nowrap'
-                                                }}
-                                            >
-                                                View Invoice
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr className="table-empty-row"><td colSpan="5">No orders found.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Invoice Modal */}
-            {selectedOrder && (
-                <InvoiceModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-            )}
-        </>
-    );
-};
-
-// --- UPDATED: Create Account Page with API Integration ---
-const CreateAccountPage = () => {
-  const [role, setRole] = React.useState('stall');
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [stallName, setStallName] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
-  const [successMsg, setSuccessMsg] = React.useState('');
-  const [errorMsg, setErrorMsg] = React.useState('');
-  const [kitchens, setKitchens] = React.useState([]);
-  const [loadingKitchens, setLoadingKitchens] = React.useState(true);
-
-  // Fetch kitchens on mount
   React.useEffect(() => {
-    const fetchKitchens = async () => {
-      try {
-        const { authAPI } = await import('../services/api');
-        const data = await authAPI.getKitchens();
-        setKitchens(data);
-      } catch (error) {
-        console.error('Failed to fetch kitchens:', error);
-        // Fallback to hardcoded kitchens if API fails
-        setKitchens(['ATK', 'BTK', 'QTK', 'CRAFT']);
-      } finally {
-        setLoadingKitchens(false);
-      }
-    };
-    fetchKitchens();
+    loadVendorStatus();
   }, []);
 
-  const handleCreateAccount = async (e) => {
-    e.preventDefault();
-    setSuccessMsg('');
-    setErrorMsg('');
-
-    if (!email || !password) {
-      setErrorMsg('Please fill in all required fields');
-      return;
-    }
-
-    if (role === 'stall' && !stallName) {
-      setErrorMsg('Please select a kitchen for the chef');
-      return;
-    }
-
-    setLoading(true);
-
+  const loadVendorStatus = async () => {
     try {
-      // Import authAPI dynamically to avoid circular dependency
-      const { authAPI } = await import('../services/api');
-
-      const userData = {
-        email: email.trim(),
-        password: password,
-        role: role,
-        is_active: true,
-        is_superuser: false,
-        is_verified: true,
-      };
-
-      // Add stall_name only for stall owners
-      if (role === 'stall' && stallName) {
-        userData.stall_name = stallName;
+      setLoading(true);
+      setError(null);
+      console.log('Loading compiled orders...');
+      const response = await adminAPI.getCompiledOrders();
+      console.log('Compiled orders response:', response);
+      console.log('Response length:', response ? response.length : 0);
+      if (response && response.length > 0) {
+        console.log('First order:', response[0]);
+        console.log('First order items:', response[0].items);
+        console.log('Items count:', response[0].items ? response[0].items.length : 0);
       }
-
-      const response = await authAPI.registerUser(userData);
-
-      // Generate success message based on role
-      let successMessage = '✅ ';
-      if (role === 'stall') {
-        successMessage += `Chef account created successfully for "${email}"`;
-        if (stallName) {
-          successMessage += ` at ${stallName} kitchen`;
-        }
-      } else if (role === 'admin') {
-        successMessage += `Admin account created successfully for "${email}"`;
-      } else {
-        successMessage += `${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully for "${email}"`;
-      }
-      
-      setSuccessMsg(successMessage);
-      
-      // Reset form
-      setEmail('');
-      setPassword('');
-      setStallName('');
-      setRole('stall');
-
-      // Clear success message after 5 seconds
-      setTimeout(() => setSuccessMsg(''), 5000);
+      setCompiledOrders(response || []);
     } catch (error) {
-      console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.detail || 'Failed to create account. Please try again.';
-      setErrorMsg(errorMessage);
+      console.error('Error loading compiled orders:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load vendor status';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <>
+    <div className="page-section">
       <div>
-        <h3 className="page-title">Create Login Accounts</h3>
-        <p className="page-description">Admin can create Chef, Vendor, and Admin login credentials here.</p>
-      </div>
-      <div
-        className="card"
-        style={{
-            maxWidth: '500px',
-            marginLeft: 'auto',
-            marginRight: 'auto'
-         }}
-      >
-        <form onSubmit={handleCreateAccount}>
-          <div className="form-group">
-            <label htmlFor="role-select">Role *</label>
-            <select
-              id="role-select"
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value);
-                setStallName(''); // Reset stall name when role changes
-              }}
-              disabled={loading}
-            >
-              <option value="stall">Chef</option>
-              <option value="vendor">Vendor</option>
-              <option value="admin">Admin</option>
-            </select>
-            {role === 'admin' && (
-              <p style={{
-                marginTop: '0.5rem',
-                fontSize: '0.875rem',
-                color: '#5b21b6',
-                backgroundColor: '#f0f9ff',
-                padding: '0.75rem',
-                borderRadius: '0.375rem',
-                borderLeft: '3px solid #5b21b6'
-              }}>
-                <strong>ℹ️ Note:</strong> Admin users will automatically receive invoice email notifications when vendors complete orders.
-              </p>
-            )}
-          </div>
-
-          {role === 'stall' && (
-            <div className="form-group">
-              <label htmlFor="kitchen-select">Kitchen *</label>
-              <select
-                id="kitchen-select"
-                value={stallName}
-                onChange={(e) => setStallName(e.target.value)}
-                disabled={loading}
-                required
-              >
-                <option value="">Select Kitchen</option>
-                {kitchens.map(kitchen => (
-                  <option key={kitchen} value={kitchen}>{kitchen}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label htmlFor="email-input">Email ID *</label>
-            <input 
-              id="email-input" 
-              type="email" 
-              value={email} 
-              placeholder="Enter email ID" 
-              onChange={(e) => setEmail(e.target.value)} 
-              disabled={loading}
-              required 
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password-input">Password *</label>
-            <input 
-              id="password-input" 
-              type="password" 
-              value={password} 
-              placeholder="Enter password (min 3 characters)" 
-              onChange={(e) => setPassword(e.target.value)} 
-              disabled={loading}
-              required 
-              minLength="3" 
-            />
-          </div>
-
-          <button 
-            className="btn create-account-btn" 
-            type="submit"
-            disabled={loading}
-          >
-            {loading ? 'Creating...' : 'Create Account'}
-          </button>
-        </form>
-
-        {errorMsg && (
-          <p style={{
-            color: 'var(--red-dark)',
-            backgroundColor: '#fee2e2',
-            border: '1px solid var(--red)',
-            padding: '0.75rem 1rem',
-            borderRadius: '0.375rem',
-            fontWeight: '500',
-            marginTop: '1.5rem',
-            textAlign: 'center',
-            fontSize: '0.9rem'
-          }}>
-            {errorMsg}
-          </p>
-        )}
-
-        {successMsg && <p className="success-msg">{successMsg}</p>}
+        <h1 className="page-title">Vendor Status</h1>
+        <p className="page-description">Track compiled orders sent to vendors and their delivery status.</p>
       </div>
 
-      {/* Admin Users Info Section */}
-      {role === 'admin' && (
-        <div className="card" style={{ marginTop: '2rem', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
-          <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-dark)' }}>
-            📧 Email Notifications
-          </h4>
+      <div className="card">
+        {error && (
           <div style={{
-            backgroundColor: '#f0f9ff',
-            padding: '1rem',
-            borderRadius: '0.5rem',
-            border: '1px solid #bfdbfe'
+            padding: 'var(--spacing-lg)',
+            marginBottom: 'var(--spacing-lg)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--danger-50)',
+            border: '1px solid var(--danger-200)',
+            color: 'var(--danger-700)',
+            fontSize: 'var(--text-sm)'
           }}>
-            <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0, color: 'var(--text-dark)' }}>
-              <strong>All admin users</strong> automatically receive invoice email notifications when vendors complete order processing.
-            </p>
-            <ul style={{ fontSize: '0.9rem', lineHeight: '1.6', marginTop: '0.75rem', marginBottom: 0, paddingLeft: '1.5rem' }}>
-              <li>New admin accounts will start receiving emails immediately</li>
-              <li>Configure email settings in the backend .env file</li>
-              <li>Each admin receives a copy of every invoice</li>
-              <li>Emails include complete order details and pricing</li>
-            </ul>
+            <strong>Error:</strong> {error}
+            <button 
+              onClick={loadVendorStatus}
+              style={{
+                marginLeft: 'var(--spacing-md)',
+                background: 'var(--danger-600)',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)'
+              }}
+            >
+              Retry
+            </button>
           </div>
-          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fef3c7', borderRadius: '0.375rem', border: '1px solid #fbbf24' }}>
-            <p style={{ fontSize: '0.85rem', margin: 0, color: '#78350f' }}>
-              <strong>⚠️ Important:</strong> Ensure new admin users have valid email addresses to receive notifications.
-            </p>
+        )}
+        {loading ? (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading compiled orders...
+          </div>
+        ) : compiledOrders.length > 0 ? (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Items Count</th>
+                  <th>Status</th>
+                  <th>Created Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compiledOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td><strong>{order.id.substring(0, 12)}...</strong></td>
+                    <td>{order.total_items}</td>
+                    <td>
+                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <button 
+                        className="btn btn-small" 
+                        style={{ fontSize: 'var(--text-xs)' }}
+                        onClick={() => {
+                          console.log('Viewing order details:', order.id);
+                          console.log('Order object:', order);
+                          console.log('Order items:', order.items);
+                          console.log('Items count:', order.items ? order.items.length : 0);
+                          if (order.items && order.items.length > 0) {
+                            console.log('First item details:', order.items[0]);
+                            console.log('First item unit_price:', order.items[0].unit_price);
+                            console.log('First item total_price:', order.items[0].total_price);
+                          }
+                          setSelectedOrder(order);
+                        }}
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No compiled orders sent to vendors yet. Compile and approve orders first.
+          </div>
+        )}
+      </div>
+
+      {selectedOrder && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+           left: 0,
+           right: 0,
+           bottom: 0,
+           background: 'var(--overlay-bg)',
+           display: 'flex',
+           alignItems: 'center',
+           justifyContent: 'center',
+           zIndex: 1000,
+           padding: 'var(--spacing-lg)'
+         }}
+        onClick={() => setSelectedOrder(null)}
+        >
+          <div 
+            ref={(element) => window.receiptElement = element}
+            data-receipt="true"
+            style={{
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '85vh',
+              overflow: 'auto',
+               background: 'white',
+               borderRadius: 'var(--radius-lg)',
+               boxShadow: '0 20px 60px var(--shadow-color-light)'
+             }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Receipt Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-500) 100%)',
+              color: 'white',
+              padding: 'var(--spacing-xl)',
+              textAlign: 'center',
+              borderBottom: '3px solid var(--primary-700)'
+            }}>
+              <h1 style={{ margin: '0 0 var(--spacing-xs) 0', fontSize: '28px', fontWeight: 700 }}>ORDER RECEIPT</h1>
+              <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>FUMU - Food Management System</p>
+            </div>
+
+            {/* Receipt Content */}
+            <div style={{ padding: 'var(--spacing-xl)' }}>
+              {/* Order Info Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-xl)', paddingBottom: 'var(--spacing-lg)', borderBottom: '1px solid var(--border-color)' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Order ID</p>
+                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '14px', fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all' }}>{selectedOrder.id}</p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Date</p>
+                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '14px', fontWeight: 600 }}>{new Date(selectedOrder.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Status</p>
+                  <span className={`status-badge status-${selectedOrder.status.toLowerCase()}`} style={{ marginTop: 'var(--spacing-xs)', display: 'inline-block' }}>
+                    {selectedOrder.status.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total Items</p>
+                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '20px', fontWeight: 700, color: 'var(--primary-600)' }}>{selectedOrder.total_items}</p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+                <h3 style={{ margin: '0 0 var(--spacing-md) 0', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, color: 'var(--text-muted)' }}>Order Items</h3>
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ 
+                        background: 'var(--bg-secondary)', 
+                        borderBottom: '2px solid var(--border-color)',
+                        position: 'sticky',
+                        top: 0
+                      }}>
+                        <th style={{ textAlign: 'left', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Item</th>
+                        <th style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Qty</th>
+                        <th style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Delivered</th>
+                        <th style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Unit Price</th>
+                        <th style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                        selectedOrder.items.map((item, idx) => (
+                          <tr key={idx} style={{ 
+                            borderBottom: '1px solid var(--border-color)',
+                            background: idx % 2 === 0 ? 'var(--bg-secondary)' : 'transparent'
+                          }}>
+                            <td style={{ padding: 'var(--spacing-md)', fontWeight: 500 }}>{item.item_name}</td>
+                            <td style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 500 }}>{item.total_quantity}</td>
+                            <td style={{ 
+                              textAlign: 'center', 
+                              padding: 'var(--spacing-md)', 
+                              color: item.delivered_quantity > 0 ? 'var(--success-600)' : 'var(--text-muted)',
+                              fontWeight: 600
+                            }}>
+                              {item.delivered_quantity || 0}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: 'var(--spacing-md)', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 500 }}>
+                              {item.unit_price ? `₹${item.unit_price.toFixed(2)}` : 'N/A'}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 600, color: 'var(--primary-600)' }}>
+                              {item.total_price ? `₹${item.total_price.toFixed(2)}` : 'N/A'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" style={{ padding: 'var(--spacing-lg)', textAlign: 'center', color: 'var(--text-muted)' }}>No items in this order</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div style={{ 
+                background: 'var(--bg-secondary)', 
+                padding: 'var(--spacing-lg)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: 'var(--spacing-xl)',
+                borderLeft: '4px solid var(--primary-500)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)' }}>
+                  <span style={{ fontWeight: 600 }}>Total Price:</span>
+                  <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--primary-600)' }}>
+                    {selectedOrder.total_price ? `₹${selectedOrder.total_price.toFixed(2)}` : 'N/A'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 600 }}>Total Items:</span>
+                  <span style={{ fontWeight: 600 }}>{selectedOrder.total_items}</span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ 
+                textAlign: 'center', 
+                padding: 'var(--spacing-lg)',
+                borderTop: '1px dashed var(--border-color)',
+                marginBottom: 'var(--spacing-lg)',
+                color: 'var(--text-muted)',
+                fontSize: '12px'
+              }}>
+                <p style={{ margin: '0 0 var(--spacing-xs) 0' }}>Thank you for using FUMU</p>
+                <p style={{ margin: 0 }}>Generated on {new Date().toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ 
+              display: 'flex',
+              gap: 'var(--spacing-md)',
+              padding: 'var(--spacing-lg)',
+              borderTop: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)'
+            }}>
+              <button 
+                onClick={() => {
+                  console.log('Generating PDF...');
+                  try {
+                    // Create isolated print window for PDF
+                    const printWindow = window.open('', '', 'height=800,width=900');
+                    
+                    const receiptHTML = `<!DOCTYPE html>
+                      <html>
+                      <head>
+                        <style>
+                          * { margin: 0; padding: 0; box-sizing: border-box; }
+                          body { font-family: Arial, sans-serif; background: white; color: #000; padding: 20px; }
+                          .header { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: white; padding: 30px; text-align: center; margin-bottom: 20px; }
+                          .header h1 { font-size: 24px; margin-bottom: 5px; }
+                          .info-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+                          .info-table td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                          .info-table td:first-child { font-weight: 600; width: 40%; }
+                          .items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 20px 0; }
+                          .items-table th { background: #f3f4f6; padding: 10px; text-align: left; font-weight: 700; border: 1px solid #d1d5db; }
+                          .items-table td { padding: 10px; border: 1px solid #e5e7eb; }
+                          .items-table tr:nth-child(even) { background: #f9fafb; }
+                          .summary { background: #f3f4f6; padding: 15px; border-left: 4px solid #4f46e5; }
+                          .summary div { display: flex; justify-content: space-between; margin: 5px 0; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="header">
+                          <h1>ORDER RECEIPT</h1>
+                          <p>FUMU - Food Management System</p>
+                        </div>
+                        <table class="info-table">
+                          <tr><td>Order ID:</td><td>${selectedOrder.id}</td></tr>
+                          <tr><td>Date:</td><td>${new Date(selectedOrder.created_at).toLocaleDateString('en-IN')}</td></tr>
+                          <tr><td>Status:</td><td>${selectedOrder.status.toUpperCase()}</td></tr>
+                          <tr><td>Total Items:</td><td>${selectedOrder.total_items}</td></tr>
+                        </table>
+                        <h3 style="margin: 20px 0 10px; font-size: 12px; color: #6b7280;">ORDER ITEMS</h3>
+                        <table class="items-table">
+                          <tr><th>Item</th><th>Qty</th><th>Delivered</th><th>Unit Price</th><th>Total</th></tr>
+                          ${selectedOrder.items && selectedOrder.items.length > 0 ? selectedOrder.items.map(item => `
+                            <tr>
+                              <td>${item.item_name}</td>
+                              <td style="text-align: center;">${item.total_quantity}</td>
+                              <td style="text-align: center;">${item.delivered_quantity || 0}</td>
+                              <td style="text-align: right;">₹${item.unit_price ? item.unit_price.toFixed(2) : 'N/A'}</td>
+                              <td style="text-align: right; font-weight: 600;">₹${item.total_price ? item.total_price.toFixed(2) : 'N/A'}</td>
+                            </tr>
+                          `).join('') : '<tr><td colspan="5">No items</td></tr>'}
+                        </table>
+                        <div class="summary">
+                          <div><span>Total Price:</span><span style="font-weight: 700; color: #4f46e5;">₹${selectedOrder.total_price ? selectedOrder.total_price.toFixed(2) : 'N/A'}</span></div>
+                        </div>
+                        <p style="text-align: center; margin-top: 20px; font-size: 11px; color: #6b7280;">Generated: ${new Date().toLocaleString('en-IN')}</p>
+                      </body></html>`;
+                    
+                    printWindow.document.write(receiptHTML);
+                    printWindow.document.close();
+                    
+                    setTimeout(() => {
+                      printWindow.print();
+                      console.log('Print dialog opened - user can save as PDF');
+                    }, 300);
+                  } catch (error) {
+                    console.error('Error:', error);
+                    alert(`Error: ${error.message}`);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--success-600)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.background = 'var(--success-700)'}
+                onMouseLeave={(e) => e.target.style.background = 'var(--success-600)'}
+              >
+                📥 Download PDF
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('Opening print dialog...');
+                  try {
+                    // Add a small delay to ensure the DOM is ready
+                    setTimeout(() => {
+                      window.print();
+                    }, 100);
+                  } catch (error) {
+                    console.error('Error printing:', error);
+                    alert(`Error: ${error.message}`);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--info-600)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.background = 'var(--info-700)'}
+                onMouseLeave={(e) => e.target.style.background = 'var(--info-600)'}
+              >
+                🖨️ Print
+              </button>
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                style={{
+                  flex: 1,
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
+                onMouseLeave={(e) => e.target.style.background = 'var(--bg-primary)'}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
-// --- Main AdminDashboard Component (Unchanged) ---
+const HistoryPage = () => {
+  const [history, setHistory] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    loadOrderHistory();
+  }, []);
+
+  const loadOrderHistory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Loading order history...');
+      const response = await adminAPI.getCompiledOrders();
+      console.log('Order history response:', response);
+      setHistory(response || []);
+    } catch (error) {
+      console.error('Error loading order history:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load history';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Order History</h1>
+        <p className="page-description">View all historical orders and their status.</p>
+      </div>
+
+      <div className="card">
+        {error && (
+          <div style={{
+            padding: 'var(--spacing-lg)',
+            marginBottom: 'var(--spacing-lg)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--danger-50)',
+            border: '1px solid var(--danger-200)',
+            color: 'var(--danger-700)',
+            fontSize: 'var(--text-sm)'
+          }}>
+            <strong>Error:</strong> {error}
+            <button 
+              onClick={loadOrderHistory}
+              style={{
+                marginLeft: 'var(--spacing-md)',
+                background: 'var(--danger-600)',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {loading ? (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading history...
+          </div>
+        ) : history.length > 0 ? (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Items</th>
+                  <th>Status</th>
+                  <th>Total Price</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((order) => (
+                  <tr key={order.id}>
+                    <td><strong>{order.id.substring(0, 8)}...</strong></td>
+                    <td>{order.total_items}</td>
+                    <td>
+                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td>${order.total_price || 'N/A'}</td>
+                    <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No order history found.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CreateAccountPage = () => {
+  const [formData, setFormData] = React.useState({
+    email: '',
+    password: '',
+    role: 'stall',
+    kitchen: '',
+    stall_name: ''
+  });
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState({ type: '', text: '' });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      if (!formData.email || !formData.password) {
+        setMessage({ type: 'error', text: 'Email and password are required' });
+        setLoading(false);
+        return;
+      }
+
+      if (formData.role === 'stall' && !formData.kitchen) {
+        setMessage({ type: 'error', text: 'Please select a kitchen for Chef role' });
+        setLoading(false);
+        return;
+      }
+
+      const userData = {
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+
+      if (formData.role === 'stall') {
+        userData.kitchen = formData.kitchen;
+        userData.stall_name = formData.stall_name || formData.kitchen;
+      }
+
+      const response = await authAPI.registerUser(userData);
+
+      setMessage({ 
+        type: 'success', 
+        text: `Account created successfully for ${response.email}` 
+      });
+
+      setFormData({
+        email: '',
+        password: '',
+        role: 'stall',
+        kitchen: '',
+        stall_name: ''
+      });
+    } catch (error) {
+      console.error('Account creation error:', error);
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to create account';
+      setMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Create User Account</h1>
+        <p className="page-description">Create new user accounts for staff, admins, and vendors.</p>
+      </div>
+
+      <div className="card" style={{ maxWidth: '600px' }}>
+        {message.text && (
+          <div style={{
+            padding: 'var(--spacing-md)',
+            marginBottom: 'var(--spacing-lg)',
+            borderRadius: 'var(--radius-md)',
+            background: message.type === 'success' ? 'var(--success-50)' : 'var(--danger-50)',
+            border: `1px solid ${message.type === 'success' ? 'var(--success-200)' : 'var(--danger-200)'}`,
+            color: message.type === 'success' ? 'var(--success-700)' : 'var(--danger-700)',
+            fontSize: 'var(--text-sm)'
+          }}>
+            {message.text}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <label htmlFor="email" className="form-label">Email Address</label>
+            <input
+              id="email"
+              type="email"
+              className="form-input"
+              placeholder="user@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <label htmlFor="password" className="form-label">Password</label>
+            <input
+              id="password"
+              type="password"
+              className="form-input"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <label htmlFor="role" className="form-label">Role</label>
+            <select
+              id="role"
+              className="form-select"
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              disabled={loading}
+            >
+              <option value="stall">Chef (Stall)</option>
+              <option value="admin">Administrator</option>
+              <option value="vendor">Vendor</option>
+            </select>
+          </div>
+
+          {formData.role === 'stall' && (
+            <>
+              <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <label htmlFor="kitchen" className="form-label">Kitchen Assignment</label>
+                <select
+                  id="kitchen"
+                  className="form-select"
+                  value={formData.kitchen}
+                  onChange={(e) => setFormData({ ...formData, kitchen: e.target.value })}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select Kitchen</option>
+                  <option value="BTK">BTK Kitchen</option>
+                  <option value="ATK">ATK Kitchen</option>
+                  <option value="QTK">QTK Kitchen</option>
+                  <option value="CRAFT">CRAFT Kitchen</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <label htmlFor="stall_name" className="form-label">Stall Name (Optional)</label>
+                <input
+                  id="stall_name"
+                  type="text"
+                  className="form-input"
+                  placeholder="Stall name (defaults to kitchen)"
+                  value={formData.stall_name}
+                  onChange={(e) => setFormData({ ...formData, stall_name: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
+            </>
+          )}
+
+          <button type="submit" className="btn" style={{ width: '100%' }} disabled={loading}>
+            <Plus size={18} />
+            {loading ? 'Creating Account...' : 'Create Account'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export default function AdminDashboard() {
   const [activePage, setActivePage] = React.useState('view-orders');
   const { logout } = useAuth();
+
   const renderPage = () => {
     switch (activePage) {
-      case 'view-orders': return <ViewOrdersPage />;
-      case 'vendor-status': return <VendorStatusPage />;
-      case 'history': return <OrderHistoryPage />;
-      case 'create-account': return <CreateAccountPage />;
-      default: return <ViewOrdersPage />;
+      case 'view-orders':
+        return <ViewOrdersPage />;
+      case 'vendor-status':
+        return <VendorStatusPage />;
+      case 'history':
+        return <HistoryPage />;
+      case 'create-account':
+        return <CreateAccountPage />;
+      default:
+        return <ViewOrdersPage />;
     }
   };
+
   return (
     <>
       <DashboardStyles />
@@ -1544,10 +1489,11 @@ export default function AdminDashboard() {
         <Sidebar activePage={activePage} setActivePage={setActivePage} />
         <main className="main-content">
           <Header onLogout={logout} />
-          <div className="page-content">{renderPage()}</div>
+          <div className="page-content">
+            {renderPage()}
+          </div>
         </main>
       </div>
     </>
   );
-
 }
