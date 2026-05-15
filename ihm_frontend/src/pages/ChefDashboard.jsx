@@ -19,24 +19,29 @@ const DashboardStyles = () => (
     .dashboard-container {
       display: flex;
       height: 100vh;
-      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      background: linear-gradient(-45deg, var(--bg-primary), var(--primary-100), var(--accent-100), var(--bg-secondary));
+      background-size: 400% 400%;
+      animation: gradientMove 15s ease infinite;
       overflow: hidden;
     }
 
     /* Sidebar */
     .sidebar {
       width: 280px;
-      background: var(--bg-primary);
-      border-right: 1px solid var(--border-default);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border-right: 1px solid var(--glass-border);
       display: flex;
       flex-direction: column;
       box-shadow: var(--shadow-md);
+      z-index: 10;
     }
 
     .sidebar-header {
       padding: var(--spacing-lg);
-      border-bottom: 1px solid var(--border-light);
-      background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+      border-bottom: 1px solid var(--glass-border);
+      background: transparent;
     }
 
     .sidebar-title {
@@ -106,13 +111,16 @@ const DashboardStyles = () => (
     }
 
     .header {
-      background: var(--bg-primary);
-      border-bottom: 1px solid var(--border-default);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border-bottom: 1px solid var(--glass-border);
       padding: var(--spacing-lg) var(--spacing-2xl);
       display: flex;
       justify-content: space-between;
       align-items: center;
       box-shadow: var(--shadow-sm);
+      z-index: 5;
     }
 
     .header-title {
@@ -145,7 +153,7 @@ const DashboardStyles = () => (
     .btn-logout:hover {
       background: var(--danger-600);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
     }
 
     .btn-theme-toggle {
@@ -195,16 +203,19 @@ const DashboardStyles = () => (
 
     /* Cards */
     .card {
-      background: var(--bg-primary);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-radius: var(--radius-xl);
       padding: var(--spacing-2xl);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border-light);
+      box-shadow: var(--glass-shadow);
+      border: 1px solid var(--glass-border);
       transition: all var(--transition-base);
     }
 
     .card:hover {
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-xl);
+      transform: translateY(-4px);
     }
 
     /* Catalog Layout */
@@ -230,19 +241,21 @@ const DashboardStyles = () => (
     }
     
     .item-card {
-      background: var(--bg-primary);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-radius: var(--radius-lg);
       overflow: hidden;
-      box-shadow: var(--shadow-sm);
-      border: 1px solid var(--border-default);
+      box-shadow: var(--glass-shadow);
+      border: 1px solid var(--glass-border);
       transition: all var(--transition-fast);
       display: flex;
       flex-direction: column;
     }
     
     .item-card:hover {
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-4px);
     }
     
     .item-image {
@@ -283,11 +296,13 @@ const DashboardStyles = () => (
       display: flex;
       flex-direction: column;
       gap: var(--spacing-md);
-      background: var(--bg-primary);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-radius: var(--radius-xl);
       padding: var(--spacing-xl);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border-light);
+      box-shadow: var(--glass-shadow);
+      border: 1px solid var(--glass-border);
       position: sticky;
       top: 0;
       max-height: calc(100vh - 120px);
@@ -307,9 +322,9 @@ const DashboardStyles = () => (
       justify-content: space-between;
       align-items: center;
       padding: var(--spacing-sm);
-      border: 1px solid var(--border-light);
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-md);
-      background: var(--bg-secondary);
+      background: rgba(255, 255, 255, 0.4);
     }
     
     .cart-item-info {

@@ -11,23 +11,28 @@ const DashboardStyles = () => (
     .dashboard-container {
       display: flex;
       height: 100vh;
-      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      background: linear-gradient(-45deg, var(--bg-primary), var(--primary-100), var(--accent-100), var(--bg-secondary));
+      background-size: 400% 400%;
+      animation: gradientMove 15s ease infinite;
       overflow: hidden;
     }
 
     .sidebar {
       width: 280px;
-      background: var(--bg-primary);
-      border-right: 1px solid var(--border-default);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border-right: 1px solid var(--glass-border);
       display: flex;
       flex-direction: column;
       box-shadow: var(--shadow-md);
+      z-index: 10;
     }
 
     .sidebar-header {
       padding: var(--spacing-lg);
-      border-bottom: 1px solid var(--border-light);
-      background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+      border-bottom: 1px solid var(--glass-border);
+      background: transparent;
     }
 
     .sidebar-title {
@@ -94,13 +99,16 @@ const DashboardStyles = () => (
     }
 
     .header {
-      background: var(--bg-primary);
-      border-bottom: 1px solid var(--border-default);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border-bottom: 1px solid var(--glass-border);
       padding: var(--spacing-lg) var(--spacing-2xl);
       display: flex;
       justify-content: space-between;
       align-items: center;
       box-shadow: var(--shadow-sm);
+      z-index: 5;
     }
 
     .header-title {
@@ -127,6 +135,7 @@ const DashboardStyles = () => (
     .btn-logout:hover {
       background: var(--danger-600);
       transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
     }
 
     .btn-theme-toggle {
@@ -173,12 +182,20 @@ const DashboardStyles = () => (
     }
 
     .card {
-      background: var(--bg-primary);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-radius: var(--radius-xl);
       padding: var(--spacing-2xl);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border-light);
+      box-shadow: var(--glass-shadow);
+      border: 1px solid var(--glass-border);
       animation: fadeIn 0.4s ease-out forwards;
+      transition: all var(--transition-base);
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-xl);
+      transform: translateY(-4px);
     }
 
     .stats-grid {
@@ -189,13 +206,22 @@ const DashboardStyles = () => (
     }
 
     .stat-card {
-      background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+      background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-radius: var(--radius-lg);
       padding: var(--spacing-lg);
-      border: 1px solid var(--border-light);
+      border: 1px solid var(--glass-border);
       display: flex;
       flex-direction: column;
       gap: var(--spacing-sm);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--transition-base);
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
     }
 
     .stat-label {
