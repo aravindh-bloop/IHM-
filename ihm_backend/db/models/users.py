@@ -118,13 +118,15 @@ def get_jwt_strategy() -> JWTStrategy:
 
 
 # Configure cookie transport for cross-domain authentication
-# SameSite=none is required for cross-domain cookies to work
+# Development mode: allow HTTP, SameSite=lax
+# Production mode: require HTTPS, SameSite=none for cross-domain cookies
+is_dev = settings.environment == "dev"
 cookie_transport = CookieTransport(
     cookie_name="fastapiusersauth",
     cookie_max_age=3600 * 24 * 7,  # 7 days
-    cookie_secure=True,  # Required for SameSite=none
+    cookie_secure=not is_dev,  # False in dev (HTTP), True in prod (HTTPS)
     cookie_httponly=True,
-    cookie_samesite="none",  # Allow cross-domain cookies
+    cookie_samesite="lax" if is_dev else "none",  # lax for dev, none for prod
 )
 auth_cookie = AuthenticationBackend(
     name="cookie",
