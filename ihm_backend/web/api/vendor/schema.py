@@ -18,9 +18,12 @@ class CompiledOrderForVendor(BaseModel):
     """Compiled order details for vendor dashboard"""
     order_id: str
     date: str
+    required_date: Optional[str] = None  # delivery date
     status: str
     total_items: int
     total_price: Optional[float] = None
+    invoice_number: Optional[str] = None
+    delivered_at: Optional[str] = None
     items: List[OrderItemForVendor]
 
 

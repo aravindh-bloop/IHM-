@@ -1,8 +1,9 @@
 """Vendor API endpoints."""
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from typing import List, Optional
 from ihm_backend.db.dependencies import get_db_session
 from ihm_backend.db.models.users import User, UserRole
@@ -21,6 +22,27 @@ from ihm_backend.services.email import send_invoice_email, send_order_notificati
 from ihm_backend.settings import settings
 
 router = APIRouter()
+
+
+CATEGORY_PREFIX = {
+    "seafood": "SEA",
+    "vegetables_fruits": "VEG",
+    "general_provisions": "GEN",
+}
+
+
+async def _generate_invoice_number(db: AsyncSession, category: str | None) -> str:
+    """INV-YYYYMMDD-CAT-NNN, where NNN is the count of today's invoices for that category + 1."""
+    prefix = CATEGORY_PREFIX.get(category or "", "GEN")
+    today = datetime.utcnow().strftime("%Y%m%d")
+    base = f"INV-{today}-{prefix}-"
+    result = await db.execute(
+        select(func.count()).select_from(CompiledOrders).where(
+            CompiledOrders.invoice_number.like(f"{base}%")
+        )
+    )
+    count = result.scalar() or 0
+    return f"{base}{count + 1:03d}"
 
 
 @router.get("/orders/incoming", response_model=List[CompiledOrderForVendor])
@@ -71,9 +93,12 @@ async def get_incoming_orders(
             CompiledOrderForVendor(
                 order_id=str(compiled_order.id),
                 date=compiled_order.created_at.isoformat(),
+                required_date=compiled_order.required_date.isoformat() if compiled_order.required_date else None,
                 status=compiled_order.status,
                 total_items=compiled_order.total_items,
                 total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
+                invoice_number=compiled_order.invoice_number,
+                delivered_at=compiled_order.delivered_at.isoformat() if compiled_order.delivered_at else None,
                 items=order_items
             )
         )
@@ -105,99 +130,100 @@ async def update_order_status(
     if not compiled_order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
 
+    if compiled_order.status == "delivered":
+        raise HTTPException(status_code=400, detail="This order has already been billed and cannot be modified")
+
     # Update individual order items and collect item details for email
-    total_price_sum = 0
+    total_price_sum = 0.0
     order_items = []
-    
+
     for item_update in update_data.items:
-        # Calculate total price if unit price is provided
-        total_price = None
-        if item_update.unit_price is not None:
-            total_price = item_update.unit_price * item_update.delivered_quantity
-            total_price_sum += total_price
-        
-        # Get the order item for email
         order_item_result = await db.execute(
             select(Orders).where(Orders.id == uuid.UUID(item_update.item_id))
         )
         order_item = order_item_result.scalar_one_or_none()
-        
-        if order_item:
-            # Update the order
-            await db.execute(
-                update(Orders)
-                .where(Orders.id == uuid.UUID(item_update.item_id))
-                .values(
-                    delivered_quantity=item_update.delivered_quantity,
-                    unit_price=item_update.unit_price,
-                    total_price=total_price
-                )
+        if not order_item:
+            continue
+
+        # Vendor cannot deliver more than was ordered
+        if item_update.delivered_quantity > order_item.total_quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Delivered quantity ({item_update.delivered_quantity}) for "
+                       f"'{order_item.item_name}' exceeds ordered quantity ({order_item.total_quantity})"
             )
-            
-            # Collect item details for email
-            order_items.append({
-                'item_name': order_item.item_name,
-                'total_quantity': order_item.total_quantity,
-                'delivered_quantity': item_update.delivered_quantity,
-                'unit': order_item.unit or 'kg',
-                'unit_price': item_update.unit_price or 0,
-                'total_price': total_price or 0
-            })
+        if item_update.delivered_quantity < 0:
+            raise HTTPException(status_code=400, detail="Delivered quantity cannot be negative")
 
-    # Update compiled order total price
-    if total_price_sum > 0:
-        compiled_order.total_price = total_price_sum
+        # When generating the final bill, unit price is required
+        if update_data.mark_as_completed and item_update.unit_price is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unit price required for '{order_item.item_name}' to generate the bill"
+            )
 
-    # Mark order as completed if specified
+        line_total = None
+        if item_update.unit_price is not None:
+            line_total = float(item_update.unit_price) * item_update.delivered_quantity
+            total_price_sum += line_total
+
+        await db.execute(
+            update(Orders)
+            .where(Orders.id == uuid.UUID(item_update.item_id))
+            .values(
+                delivered_quantity=item_update.delivered_quantity,
+                unit_price=item_update.unit_price,
+                total_price=line_total
+            )
+        )
+
+        order_items.append({
+            'item_name': order_item.item_name,
+            'total_quantity': order_item.total_quantity,
+            'delivered_quantity': item_update.delivered_quantity,
+            'unit': order_item.unit or 'kg',
+            'unit_price': item_update.unit_price or 0,
+            'total_price': line_total or 0
+        })
+
+    compiled_order.total_price = total_price_sum if total_price_sum > 0 else compiled_order.total_price
+
+    invoice_number = None
     if update_data.mark_as_completed:
-        compiled_order.status = "completed"
-        
-        # Prepare email data
+        invoice_number = await _generate_invoice_number(db, compiled_order.vendor_category)
+        compiled_order.status = "delivered"
+        compiled_order.invoice_number = invoice_number
+        compiled_order.delivered_at = datetime.utcnow()
+
+        # Email admins the invoice
         order_data = {
             'order_id': str(order_id),
+            'invoice_number': invoice_number,
             'order_date': compiled_order.created_at.strftime('%Y-%m-%d'),
-            'status': 'completed',
+            'delivered_at': compiled_order.delivered_at.strftime('%Y-%m-%d %H:%M'),
+            'required_date': compiled_order.required_date.isoformat() if compiled_order.required_date else None,
+            'status': 'delivered',
             'total_items': len(order_items),
             'total_price': total_price_sum,
             'items': order_items,
             'vendor_name': current_user.email
         }
-        
-        # Send invoice email to all admins in background
         try:
-            # Get all admin user emails
-            admin_result = await db.execute(
-                select(User).where(User.role == UserRole.ADMIN)
-            )
-            admin_users = admin_result.scalars().all()
-            
-            # Collect all admin emails
-            admin_emails = []
-            for admin in admin_users:
-                if admin.email:
-                    admin_emails.append(admin.email)
-            
-            # Fallback to settings if no admin users found
-            if not admin_emails:
-                admin_emails = [settings.admin_email]
-            
-            # Schedule email sending to all admins in background
+            admin_result = await db.execute(select(User).where(User.role == UserRole.ADMIN))
+            admin_emails = [a.email for a in admin_result.scalars() if a.email] or [settings.admin_email]
             if admin_emails:
-                background_tasks.add_task(
-                    send_invoice_email,
-                    admin_emails,
-                    order_data
-                )
+                background_tasks.add_task(send_invoice_email, admin_emails, order_data)
         except Exception as e:
-            # Log error but don't fail the request
             print(f"Error scheduling email: {e}")
 
     await db.commit()
 
     return {
-        "message": "Order status updated successfully",
+        "message": "Bill generated successfully" if update_data.mark_as_completed else "Order draft saved",
         "order_id": str(order_id),
-        "email_scheduled": update_data.mark_as_completed
+        "invoice_number": invoice_number,
+        "total_price": total_price_sum,
+        "delivered": update_data.mark_as_completed,
     }
 
 
@@ -214,12 +240,12 @@ async def get_supply_history(
         select(CompiledOrders)
         .where(
             CompiledOrders.vendor_id == current_user.id,
-            CompiledOrders.status.in_(["completed", "cancelled"])
+            CompiledOrders.status.in_(["delivered", "cancelled"])
         )
-        .order_by(CompiledOrders.created_at.desc())
+        .order_by(CompiledOrders.delivered_at.desc().nullslast(), CompiledOrders.created_at.desc())
     )
     compiled_orders = result.scalars().all()
-    print(f"Found {len(compiled_orders)} completed/cancelled orders")
+    print(f"Found {len(compiled_orders)} delivered/cancelled orders")
     
     history = []
     for order in compiled_orders:
@@ -247,9 +273,12 @@ async def get_supply_history(
             CompiledOrderForVendor(
                 order_id=str(order.id),
                 date=order.created_at.isoformat(),
+                required_date=order.required_date.isoformat() if order.required_date else None,
                 status=order.status,
                 total_items=len(orders),
                 total_price=float(order.total_price) if order.total_price else None,
+                invoice_number=order.invoice_number,
+                delivered_at=order.delivered_at.isoformat() if order.delivered_at else None,
                 items=order_items
             )
         )

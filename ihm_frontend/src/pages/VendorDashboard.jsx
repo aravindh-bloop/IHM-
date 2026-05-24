@@ -275,7 +275,8 @@ const DashboardStyles = () => (
       color: var(--warning-700);
     }
 
-    .status-completed {
+    .status-completed,
+    .status-delivered {
       background: var(--success-50);
       color: var(--success-700);
     }
@@ -444,7 +445,15 @@ const DashboardStyles = () => (
   `}</style>
 );
 
+const CATEGORY_LABELS = {
+  seafood: 'Seafood',
+  vegetables_fruits: 'Vegetables & Fruits',
+  general_provisions: 'General Provisions',
+};
+
 const Sidebar = ({ activePage, setActivePage }) => {
+  const { user } = useAuth();
+  const catLabel = CATEGORY_LABELS[user?.vendor_category] || 'Vendor';
   const links = [
     { id: 'incoming', label: 'Incoming Orders', icon: Package },
     { id: 'history', label: 'Supply History', icon: History }
@@ -454,7 +463,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-title">FUMU</div>
-        <div className="sidebar-subtitle">Vendor Portal</div>
+        <div className="sidebar-subtitle">{catLabel}</div>
       </div>
       <nav className="sidebar-nav">
         {links.map(({ id, label, icon: Icon }) => (
@@ -474,10 +483,12 @@ const Sidebar = ({ activePage, setActivePage }) => {
 
 const Header = ({ onLogout }) => {
   const { theme, toggleTheme } = useTheme();
-  
+  const { user } = useAuth();
+  const catLabel = CATEGORY_LABELS[user?.vendor_category] || 'Vendor';
+
   return (
     <header className="header">
-      <h2 className="header-title">Welcome, Vendor</h2>
+      <h2 className="header-title">Welcome, {catLabel}</h2>
       <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
         <button 
           className="btn-theme-toggle" 
@@ -533,25 +544,68 @@ const IncomingOrdersPage = () => {
     }));
   };
 
-  const handleSubmitFeedback = async (orderId) => {
+  const computeOrderTotal = (order) => {
+    return order.items.reduce((sum, item) => {
+      const qty = feedback[order.order_id]?.[item.item_id]?.deliveredQty ?? item.total_quantity;
+      const price = feedback[order.order_id]?.[item.item_id]?.unitPrice;
+      if (price == null) return sum;
+      return sum + (qty * price);
+    }, 0);
+  };
+
+  const handleGenerateBill = async (orderId) => {
+    const order = orders.find(o => o.order_id === orderId);
+
+    // Validate: every item must have a unit price set
+    const missingPrice = order.items.find(it => {
+      const price = feedback[orderId]?.[it.item_id]?.unitPrice;
+      return price == null || isNaN(price);
+    });
+    if (missingPrice) {
+      toast.error(`Set a unit price for "${missingPrice.item_name}" before generating the bill.`);
+      return;
+    }
+
+    const total = computeOrderTotal(order);
+    const ok = window.confirm(
+      `Generate bill of ₹${total.toFixed(2)} for this order? This action is final and cannot be undone.`
+    );
+    if (!ok) return;
+
     try {
-      const order = orders.find(o => o.order_id === orderId);
+      const items = order.items.map(item => ({
+        item_id: item.item_id,
+        delivered_quantity: feedback[orderId]?.[item.item_id]?.deliveredQty ?? item.total_quantity,
+        unit_price: feedback[orderId]?.[item.item_id]?.unitPrice
+      }));
+
+      const res = await vendorAPI.updateOrderStatus(orderId, {
+        items: items,
+        mark_as_completed: true,
+      });
+
+      toast.success(`Bill ${res.invoice_number} generated — ₹${(res.total_price || total).toFixed(2)}`);
+      fetchIncomingOrders();
+    } catch (err) {
+      console.error('Error generating bill:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to generate bill';
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleSaveDraft = async (orderId) => {
+    const order = orders.find(o => o.order_id === orderId);
+    try {
       const items = order.items.map(item => ({
         item_id: item.item_id,
         delivered_quantity: feedback[orderId]?.[item.item_id]?.deliveredQty ?? item.total_quantity,
         unit_price: feedback[orderId]?.[item.item_id]?.unitPrice ?? null
       }));
-
-      await vendorAPI.updateOrderStatus(orderId, {
-        items: items,
-        mark_as_completed: true
-      });
-
-      toast.success('Status updated successfully!');
-      fetchIncomingOrders();
+      await vendorAPI.updateOrderStatus(orderId, { items, mark_as_completed: false });
+      toast.success('Draft saved');
     } catch (err) {
-      console.error('Error submitting feedback:', err);
-      toast.error('Failed to submit feedback');
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to save draft';
+      toast.error(errorMsg);
     }
   };
 
@@ -574,9 +628,20 @@ const IncomingOrdersPage = () => {
                 <div style={{ marginBottom: 'var(--spacing-lg)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                     <div>
-                      <h3 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>Order #{order.order_id.substring(0, 8).toUpperCase()}</h3>
+                      <h3 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>
+                        Order #{order.order_id.substring(0, 8).toUpperCase()}
+                        {order.required_date && (
+                          <span style={{
+                            marginLeft: 12, padding: '4px 10px',
+                            background: 'var(--primary-100)', color: 'var(--primary-700)',
+                            borderRadius: 999, fontSize: 'var(--text-xs)', fontWeight: 700
+                          }}>
+                            Deliver by {new Date(order.required_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                      </h3>
                       <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 'var(--spacing-xs)' }}>
-                        {new Date(order.date).toLocaleDateString()}
+                        Created {new Date(order.date).toLocaleDateString()}
                       </p>
                     </div>
                     <span className={`status-badge status-${order.status.toLowerCase()}`}>
@@ -622,14 +687,36 @@ const IncomingOrdersPage = () => {
                     </div>
                   ))}
 
-                  <div style={{ marginTop: 'var(--spacing-lg)', textAlign: 'right' }}>
-                    <button
-                      className="btn btn-success"
-                      onClick={() => handleSubmitFeedback(order.order_id)}
-                    >
-                      <Send size={18} />
-                      Update Status
-                    </button>
+                  <div style={{
+                    marginTop: 'var(--spacing-lg)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 'var(--spacing-md)'
+                  }}>
+                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                      Running total:{' '}
+                      <strong style={{ color: 'var(--success-700)', fontSize: 'var(--text-base)' }}>
+                        ₹{computeOrderTotal(order).toFixed(2)}
+                      </strong>
+                    </div>
+                    <div className="action-buttons">
+                      <button
+                        className="btn btn-small"
+                        onClick={() => handleSaveDraft(order.order_id)}
+                        style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                      >
+                        Save Draft
+                      </button>
+                      <button
+                        className="btn btn-success"
+                        onClick={() => handleGenerateBill(order.order_id)}
+                      >
+                        <Send size={18} />
+                        Generate Bill
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -721,9 +808,10 @@ const SupplyHistoryPage = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Order ID</th>
-                  <th>Date</th>
-                  <th>Total Items</th>
+                  <th>Invoice #</th>
+                  <th>Delivered</th>
+                  <th>Delivery Date</th>
+                  <th>Items</th>
                   <th>Status</th>
                   <th>Total Price</th>
                   <th>Actions</th>
@@ -732,8 +820,21 @@ const SupplyHistoryPage = () => {
               <tbody>
                 {history.map((order) => (
                   <tr key={order.order_id}>
-                    <td><strong>{order.order_id.substring(0, 12)}...</strong></td>
-                    <td>{new Date(order.date).toLocaleDateString()}</td>
+                    <td>
+                      <strong style={{ color: 'var(--primary-700)', fontFamily: 'var(--font-mono, monospace)' }}>
+                        {order.invoice_number || '—'}
+                      </strong>
+                    </td>
+                    <td>
+                      {order.delivered_at
+                        ? new Date(order.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : new Date(order.date).toLocaleDateString()}
+                    </td>
+                    <td style={{ fontWeight: 600, color: 'var(--primary-700)' }}>
+                      {order.required_date
+                        ? new Date(order.required_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+                        : '—'}
+                    </td>
                     <td>{order.total_items}</td>
                     <td>
                       <span className={`status-badge status-${order.status.toLowerCase()}`}>

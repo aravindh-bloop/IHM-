@@ -40,12 +40,15 @@ async def handle_request(
             stall_id=stall.id,
             item_name=item.item_name,
             quantity=item.quantity,
-            unit = item.unit
+            unit=item.unit,
+            required_date=item.required_date,
+            status="pending",
         )
         db.add(request)
         created_requests.append({
             "item_name": item.item_name,
-            "quantity": item.quantity
+            "quantity": item.quantity,
+            "required_date": item.required_date.isoformat(),
         })
 
     await db.commit()
@@ -92,6 +95,7 @@ async def get_requests(
                 "quantity": req.quantity,
                 "status": req.status,
                 "unit": req.unit,
+                "required_date": req.required_date.isoformat() if req.required_date else None,
                 "created_at": req.created_at
             }
             for req in requests

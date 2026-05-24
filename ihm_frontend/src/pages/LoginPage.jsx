@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChefHat, Shield, Truck, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ChefHat, Shield, Truck, GraduationCap, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 // Helper object for accessible, hidden labels
@@ -152,12 +152,13 @@ export default function LoginPage() {
           {/* Role Selection */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
+            gridTemplateColumns: 'repeat(2, 1fr)',
             gap: 'var(--spacing-md)',
             marginBottom: 'var(--spacing-xl)'
           }}>
             {[
               { id: 'stall', label: 'Chef', icon: ChefHat },
+              { id: 'hod', label: 'HOD', icon: GraduationCap },
               { id: 'admin', label: 'Admin', icon: Shield },
               { id: 'vendor', label: 'Vendor', icon: Truck }
             ].map(({ id, label, icon: Icon }) => (

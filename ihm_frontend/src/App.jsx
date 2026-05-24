@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import ChefDashboard from './pages/ChefDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import VendorDashboard from './pages/VendorDashboard';
+import HODDashboard from './pages/HODDashboard';
 import './App.css';
 
 function AppContent() {
@@ -32,6 +33,8 @@ function AppContent() {
       return <AdminDashboard />;
     case 'vendor':
       return <VendorDashboard />;
+    case 'hod':
+      return <HODDashboard />;
     default:
       return (
         <div className="min-h-screen flex items-center justify-center">

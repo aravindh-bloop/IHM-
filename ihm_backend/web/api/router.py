@@ -2,6 +2,7 @@ from fastapi.routing import APIRouter
 from fastapi import Depends
 
 from ihm_backend.web.api import echo, monitoring, redis, stall, users, admin, vendor
+from ihm_backend.web.api.hod import views as hod
 from ihm_backend.web.dependencies.auth import require_role
 from ihm_backend.db.models.users import UserRole
 
@@ -14,3 +15,4 @@ api_router.include_router(redis.router, prefix="/redis", tags=["redis"])
 api_router.include_router(stall.router, prefix="/stall", tags=["stall"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(vendor.router, prefix="/vendor", tags=["vendor"])
+api_router.include_router(hod.router, prefix="/hod", tags=["hod"])

@@ -693,14 +693,43 @@ const Header = ({ kitchen, onLogout }) => {
   );
 };
 
-// Create Order Page
+// Returns the next 5 working days (Mon-Fri only) starting from tomorrow
+const getNext5WorkingDays = () => {
+  const days = [];
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setDate(cursor.getDate() + 1); // start from tomorrow
+  while (days.length < 5) {
+    const dow = cursor.getDay(); // 0=Sun, 6=Sat
+    if (dow !== 0 && dow !== 6) {
+      days.push(new Date(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+};
+
+const fmtDateIso = (d) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const fmtDateLabel = (d) =>
+  d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+
+// Create Order Page — 5-day planner
 const CreateOrderPage = () => {
-  const [orderItems, setOrderItems] = React.useState([]);
+  const days = React.useMemo(() => getNext5WorkingDays(), []);
+  const [activeDayIdx, setActiveDayIdx] = React.useState(0);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [catalogStates, setCatalogStates] = React.useState({});
+  // dayCarts[i] = [{ name, quantity, unit }]
+  const [dayCarts, setDayCarts] = React.useState(() => days.map(() => []));
 
-  const filteredItems = AVAILABLE_ITEMS.filter(item => 
+  const filteredItems = AVAILABLE_ITEMS.filter(item =>
     item.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -717,56 +746,76 @@ const CreateOrderPage = () => {
   const handleAddItem = (item) => {
     const state = catalogStates[item] || { quantity: 1, unit: 'kg' };
     const quantity = parseInt(state.quantity) || 1;
-    
-    const existingIndex = orderItems.findIndex(i => i.name === item && i.unit === state.unit);
-    
-    if (existingIndex >= 0) {
-      const newItems = [...orderItems];
-      newItems[existingIndex].quantity += quantity;
-      setOrderItems(newItems);
-    } else {
-      setOrderItems([...orderItems, { name: item, quantity, unit: state.unit }]);
-    }
-    
-    toast.success(`Added ${quantity} ${state.unit} of ${item} to cart`);
-    
+
+    setDayCarts(prev => {
+      const next = prev.map(cart => [...cart]);
+      const cart = next[activeDayIdx];
+      const existingIdx = cart.findIndex(i => i.name === item && i.unit === state.unit);
+      if (existingIdx >= 0) {
+        cart[existingIdx].quantity += quantity;
+      } else {
+        cart.push({ name: item, quantity, unit: state.unit });
+      }
+      return next;
+    });
+
+    toast.success(`Added ${quantity} ${state.unit} of ${item} to ${fmtDateLabel(days[activeDayIdx])}`);
+
     setCatalogStates(prev => ({
       ...prev,
       [item]: { quantity: 1, unit: state.unit }
     }));
   };
 
-  const handleRemoveItem = (indexToRemove) => {
-    setOrderItems(orderItems.filter((_, index) => index !== indexToRemove));
+  const handleRemoveItem = (dayIdx, indexToRemove) => {
+    setDayCarts(prev => prev.map((cart, i) =>
+      i === dayIdx ? cart.filter((_, idx) => idx !== indexToRemove) : cart
+    ));
   };
 
-  const handleSubmitOrder = async () => {
-    if (orderItems.length === 0) {
-      toast.error('Please add items to your order before submitting.');
+  const totalItems = dayCarts.reduce((sum, c) => sum + c.length, 0);
+  const emptyDays = dayCarts
+    .map((c, i) => (c.length === 0 ? i : -1))
+    .filter(i => i !== -1);
+
+  const handleSubmitAll = async () => {
+    if (totalItems === 0) {
+      toast.error('Please add items to at least one day before submitting.');
       return;
+    }
+    if (emptyDays.length > 0) {
+      const labels = emptyDays.map(i => fmtDateLabel(days[i])).join(', ');
+      const ok = window.confirm(
+        `These days have no items: ${labels}.\n\nSubmit anyway?`
+      );
+      if (!ok) return;
     }
 
     try {
       setIsSubmitting(true);
-      
-      const requestData = {
-        items: orderItems.map(item => ({
-          item_name: item.name,
-          quantity: parseInt(item.quantity),
-          unit: item.unit
-        }))
-      };
 
-      await stallAPI.createRequest(requestData);
+      const allItems = [];
+      dayCarts.forEach((cart, dayIdx) => {
+        const dateStr = fmtDateIso(days[dayIdx]);
+        cart.forEach(item => {
+          allItems.push({
+            item_name: item.name,
+            quantity: parseInt(item.quantity),
+            unit: item.unit,
+            required_date: dateStr,
+          });
+        });
+      });
 
-      toast.success(`Success! ${orderItems.length} items submitted to Admin. Clearing cart...`);
+      await stallAPI.createRequest({ items: allItems });
+
+      toast.success(`Submitted ${allItems.length} items across ${5 - emptyDays.length} day(s) to HOD.`);
 
       setTimeout(() => {
-        setOrderItems([]);
-      }, 2000);
-
+        setDayCarts(days.map(() => []));
+      }, 1500);
     } catch (error) {
-      console.error("Error submitting order:", error);
+      console.error('Error submitting 5-day order:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
       toast.error(`Error: ${errorMsg}`);
     } finally {
@@ -775,19 +824,57 @@ const CreateOrderPage = () => {
   };
 
   const placeholderImg = "https://cdn.britannica.com/17/196817-159-9E487F15/vegetables.jpg";
+  const activeCart = dayCarts[activeDayIdx];
 
   return (
     <div className="page-section" style={{ height: '100%' }}>
+      <div>
+        <h1 className="page-title">Plan Next 5 Working Days</h1>
+        <p className="page-description">
+          Build a separate list for each of the next 5 working days, then submit all together to the HOD.
+        </p>
+      </div>
+
+      {/* Day tabs */}
+      <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+        {days.map((d, i) => {
+          const isActive = i === activeDayIdx;
+          const count = dayCarts[i].length;
+          return (
+            <button
+              key={i}
+              onClick={() => setActiveDayIdx(i)}
+              className="btn"
+              style={{
+                background: isActive
+                  ? 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)'
+                  : 'var(--bg-secondary)',
+                color: isActive ? 'white' : 'var(--text-primary)',
+                fontWeight: isActive ? 700 : 500,
+                padding: '0.6rem 1rem',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              Day {i + 1} · {fmtDateLabel(d)}
+              {count > 0 && (
+                <span style={{
+                  marginLeft: 8,
+                  background: isActive ? 'rgba(255,255,255,0.25)' : 'var(--primary-600)',
+                  color: isActive ? 'white' : 'white',
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontSize: 'var(--text-xs)',
+                }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="catalog-layout">
-        
         {/* Main Catalog Area */}
         <div className="catalog-main">
-          <div>
-            <h1 className="page-title">Create Daily Order</h1>
-            <p className="page-description">Browse and add items to your cart, then submit to Admin.</p>
-          </div>
-          
-          <div style={{ marginTop: 'var(--spacing-xl)' }}>
+          <div style={{ marginTop: 'var(--spacing-md)' }}>
             <div className="form-group" style={{ maxWidth: '400px' }}>
               <div style={{ position: 'relative' }}>
                 <input
@@ -801,7 +888,7 @@ const CreateOrderPage = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="catalog-grid">
             {filteredItems.map(item => {
               const state = catalogStates[item] || { quantity: 1, unit: 'kg' };
@@ -810,16 +897,16 @@ const CreateOrderPage = () => {
                   <img src={placeholderImg} alt={item} className="item-image" />
                   <div className="item-content">
                     <h3 className="item-title">{item}</h3>
-                    
+
                     <div className="item-controls">
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         min="1"
-                        className="form-input qty-input" 
+                        className="form-input qty-input"
                         value={state.quantity}
                         onChange={(e) => handleUpdateState(item, 'quantity', e.target.value)}
                       />
-                      <select 
+                      <select
                         className="form-select"
                         value={state.unit}
                         onChange={(e) => handleUpdateState(item, 'unit', e.target.value)}
@@ -832,14 +919,14 @@ const CreateOrderPage = () => {
                         <option>packet</option>
                       </select>
                     </div>
-                    
-                    <button 
-                      className="btn" 
+
+                    <button
+                      className="btn"
                       style={{ width: '100%', justifyContent: 'center', marginTop: 'auto' }}
                       onClick={() => handleAddItem(item)}
                     >
                       <Plus size={16} />
-                      Add to Cart
+                      Add to {fmtDateLabel(days[activeDayIdx])}
                     </button>
                   </div>
                 </div>
@@ -852,16 +939,16 @@ const CreateOrderPage = () => {
             )}
           </div>
         </div>
-        
+
         {/* Cart Sidebar */}
         <div className="cart-sidebar">
           <h2 style={{ fontSize: 'var(--text-lg)', margin: 0, paddingBottom: 'var(--spacing-md)', borderBottom: '1px solid var(--border-light)' }}>
-            Your Cart ({orderItems.length})
+            {fmtDateLabel(days[activeDayIdx])} · {activeCart.length} item(s)
           </h2>
-          
+
           <div className="cart-items-container">
-            {orderItems.length > 0 ? (
-              orderItems.map((item, index) => (
+            {activeCart.length > 0 ? (
+              activeCart.map((item, index) => (
                 <div key={index} className="cart-item">
                   <div className="cart-item-info">
                     <strong style={{ fontSize: 'var(--text-sm)' }}>{item.name}</strong>
@@ -870,7 +957,7 @@ const CreateOrderPage = () => {
                     </span>
                   </div>
                   <button
-                    onClick={() => handleRemoveItem(index)}
+                    onClick={() => handleRemoveItem(activeDayIdx, index)}
                     className="btn btn-danger"
                     style={{ padding: '0.25rem 0.5rem', minHeight: 'auto' }}
                     title="Remove item"
@@ -881,23 +968,25 @@ const CreateOrderPage = () => {
               ))
             ) : (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--spacing-xl) 0', fontSize: 'var(--text-sm)' }}>
-                Your cart is empty. Add items from the catalogue.
+                No items for this day yet.
               </div>
             )}
           </div>
-          
+
           <div style={{ paddingTop: 'var(--spacing-md)', borderTop: '1px solid var(--border-light)', marginTop: 'auto' }}>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--spacing-sm)', textAlign: 'center' }}>
+              Total across 5 days: <strong>{totalItems}</strong> item(s)
+            </div>
             <button
               className="btn"
-              onClick={handleSubmitOrder}
-              disabled={isSubmitting || orderItems.length === 0}
+              onClick={handleSubmitAll}
+              disabled={isSubmitting || totalItems === 0}
               style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%)' }}
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Final Order'}
+              {isSubmitting ? 'Submitting...' : 'Submit All 5 Days to HOD'}
             </button>
           </div>
         </div>
-        
       </div>
     </div>
   );
@@ -1034,14 +1123,15 @@ const OrderHistoryPage = () => {
                 <th>Item Name</th>
                 <th>Quantity</th>
                 <th>Unit</th>
+                <th>Required Date</th>
                 <th>Status</th>
-                <th>Date Requested</th>
+                <th>Submitted</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="table-empty">Loading history...</td>
+                  <td colSpan="6" className="table-empty">Loading history...</td>
                 </tr>
               ) : filteredRequests.length > 0 ? (
                 filteredRequests.map((request) => (
@@ -1049,6 +1139,11 @@ const OrderHistoryPage = () => {
                     <td><strong>{request.item_name}</strong></td>
                     <td>{request.quantity}</td>
                     <td>{request.unit}</td>
+                    <td style={{ fontSize: 'var(--text-sm)' }}>
+                      {request.required_date
+                        ? new Date(request.required_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+                        : '—'}
+                    </td>
                     <td>
                       <span className={`status-badge status-${request.status.toLowerCase()}`}>
                         {request.status}
@@ -1061,7 +1156,7 @@ const OrderHistoryPage = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="table-empty">
+                  <td colSpan="6" className="table-empty">
                     {dateFilter || statusFilter !== 'all'
                       ? 'No requests found matching your filters.'
                       : 'No past requests found.'}

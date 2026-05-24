@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ class Item(BaseModel):
     item_name: str
     unit: str
     quantity: int
+    required_date: date
 
 
 class ItemRequest(BaseModel):

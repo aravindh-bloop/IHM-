@@ -1,9 +1,8 @@
 import axios from 'axios';
 
-// Base API URL - uses environment variable in production, proxy in development
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL 
-  ? `${import.meta.env.VITE_BACKEND_URL}/api`
-  : '/api';
+// Always use the Vite dev-server proxy at /api in dev (avoids CORS preflight).
+// In production a real reverse-proxy serves the API at /api as well.
+const API_BASE_URL = '/api';
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -86,33 +85,62 @@ export const chefAPI = {
 
 // ==================== ADMIN APIs ====================
 export const adminAPI = {
-  // Get all pending raw material requests (merged)
+  // Inventory
+  getInventory: async () => {
+    const response = await apiClient.get('/admin/inventory');
+    return response.data;
+  },
+
+  upsertInventory: async (data) => {
+    const response = await apiClient.post('/admin/inventory', data);
+    return response.data;
+  },
+
+  deleteInventory: async (itemId) => {
+    const response = await apiClient.delete(`/admin/inventory/${itemId}`);
+    return response.data;
+  },
+
+  // Orders
   getPendingOrders: async () => {
     const response = await apiClient.get('/admin/orders/pending');
     return response.data;
   },
 
-  // Update request status (approve/reject)
-  updateRequestStatus: async (requestId, statusData) => {
-    const response = await apiClient.patch(`/admin/orders/request/${requestId}`, statusData);
+  editRequest: async (requestId, data) => {
+    const response = await apiClient.patch(`/admin/orders/request/${requestId}`, data);
     return response.data;
   },
 
-  // Compile and send orders to vendor
-  compileOrder: async (orderData) => {
-    const response = await apiClient.post('/admin/orders/compile', orderData);
+  compileOrders: async (requiredDate = null) => {
+    const body = requiredDate ? { required_date: requiredDate } : {};
+    const response = await apiClient.post('/admin/orders/compile', body);
     return response.data;
   },
 
-  // Get all compiled orders
   getCompiledOrders: async () => {
     const response = await apiClient.get('/admin/orders/compiled');
     return response.data;
   },
 
-  // Get specific compiled order by ID
-  getCompiledOrderById: async (compiledOrderId) => {
-    const response = await apiClient.get(`/admin/orders/compiled/${compiledOrderId}`);
+  getBills: async ({ view = 'daily', vendor_category, start_date, end_date } = {}) => {
+    const params = { view };
+    if (vendor_category) params.vendor_category = vendor_category;
+    if (start_date) params.start_date = start_date;
+    if (end_date) params.end_date = end_date;
+    const response = await apiClient.get('/admin/bills', { params });
+    return response.data;
+  },
+
+  // Legacy compat
+  updateRequestStatus: async (requestId, statusData) => {
+    const response = await apiClient.patch(`/admin/orders/request/${requestId}`, statusData);
+    return response.data;
+  },
+
+  compileOrder: async (requiredDate = null) => {
+    const body = requiredDate ? { required_date: requiredDate } : {};
+    const response = await apiClient.post('/admin/orders/compile', body);
     return response.data;
   },
 };
@@ -164,6 +192,44 @@ export const stallAPI = {
   // Delete a specific request
   deleteRequest: async (requestId) => {
     const response = await apiClient.delete(`/stall/request/${requestId}`);
+    return response.data;
+  },
+};
+
+// ==================== HOD APIs ====================
+export const hodAPI = {
+  getPendingRequests: async () => {
+    const response = await apiClient.get('/hod/orders/pending');
+    return response.data;
+  },
+
+  editRequest: async (requestId, updateData) => {
+    const response = await apiClient.patch(`/hod/orders/request/${requestId}`, updateData);
+    return response.data;
+  },
+
+  deleteRequest: async (requestId) => {
+    const response = await apiClient.delete(`/hod/orders/request/${requestId}`);
+    return response.data;
+  },
+
+  addItem: async (data) => {
+    const response = await apiClient.post('/hod/orders/request', data);
+    return response.data;
+  },
+
+  submitToAdmin: async () => {
+    const response = await apiClient.post('/hod/orders/submit');
+    return response.data;
+  },
+
+  getHistory: async () => {
+    const response = await apiClient.get('/hod/orders/history');
+    return response.data;
+  },
+
+  getStalls: async () => {
+    const response = await apiClient.get('/hod/stalls');
     return response.data;
   },
 };

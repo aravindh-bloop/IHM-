@@ -1,246 +1,297 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime, timedelta
+from collections import defaultdict
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import List
+from sqlalchemy import select
+from typing import List, Optional
 from ihm_backend.db.dependencies import get_db_session
-from ihm_backend.db.models.users import User, api_users, UserRole
+from ihm_backend.db.models.users import User, UserRole, VendorCategory
 from ihm_backend.db.models.raw_material import RawMaterialRequests
 from ihm_backend.db.models.orders import Orders
 from ihm_backend.db.models.compiled_orders import CompiledOrders
 from ihm_backend.db.models.stall import Stall
+from ihm_backend.db.models.inventory import Inventory
 from ihm_backend.web.api.admin.schema import (
-    PendingOrdersResponse,
-    CompileOrderRequest,
-    CompileOrderResponse,
-    RawMaterialRequestDetail,
-    MergedItem,
-    CompiledOrderDetail,
-    OrderDetail,
-    UpdateRequestStatusRequest
+    HodSubmittedResponse, HodSubmittedItem, AdminEditItemRequest,
+    InventoryItem, InventoryUpsertRequest, CompileRequest, CompileOrderResponse,
+    CompiledOrderDetail, OrderDetail,
+    BillsResponse, BillBucket, BillConstituent
 )
 from ihm_backend.web.dependencies.auth import require_role
 
 router = APIRouter()
 
+VENDOR_CATEGORIES = ["seafood", "vegetables_fruits", "general_provisions"]
 
-@router.get("/orders/pending", response_model=PendingOrdersResponse)
-async def get_pending_raw_material_requests(
+
+# ── INVENTORY ────────────────────────────────────────────────────────────────
+
+@router.get("/inventory", response_model=List[InventoryItem])
+async def get_inventory(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-    # Get BOTH pending and approved requests
-    print("\n=== FETCHING ORDERS ===")
+    result = await db.execute(select(Inventory).order_by(Inventory.item_name))
+    return result.scalars().all()
+
+
+@router.post("/inventory", response_model=InventoryItem)
+async def upsert_inventory(
+    data: InventoryUpsertRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Add or update an inventory item (matched by item_name, case-insensitive)."""
+    if data.vendor_category not in VENDOR_CATEGORIES:
+        raise HTTPException(status_code=400, detail=f"vendor_category must be one of {VENDOR_CATEGORIES}")
+
+    result = await db.execute(
+        select(Inventory).where(Inventory.item_name.ilike(data.item_name))
+    )
+    item = result.scalar_one_or_none()
+
+    if item:
+        item.quantity = data.quantity
+        item.unit = data.unit
+        item.vendor_category = data.vendor_category
+    else:
+        item = Inventory(
+            item_name=data.item_name, quantity=data.quantity,
+            unit=data.unit, vendor_category=data.vendor_category
+        )
+        db.add(item)
+
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.delete("/inventory/{item_id}")
+async def delete_inventory(
+    item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    result = await db.execute(select(Inventory).where(Inventory.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    await db.delete(item)
+    await db.commit()
+    return {"message": "Deleted", "id": str(item_id)}
+
+
+# ── ORDERS ────────────────────────────────────────────────────────────────────
+
+@router.get("/orders/pending", response_model=HodSubmittedResponse)
+async def get_hod_submitted_orders(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Admin sees HOD-submitted requests with auto-deducted inventory quantities."""
     result = await db.execute(
         select(RawMaterialRequests, Stall)
         .join(Stall, RawMaterialRequests.stall_id == Stall.id)
-        .where(RawMaterialRequests.status.in_(["pending", "approved"]))
-        .order_by(RawMaterialRequests.created_at.desc())
+        .where(RawMaterialRequests.status == "hod_submitted")
+        .order_by(RawMaterialRequests.required_date.asc(), RawMaterialRequests.created_at.desc())
     )
-    requests_with_stalls = result.all()
-    
-    print(f"Total requests found: {len(requests_with_stalls)}")
-    pending_count = 0
-    approved_count = 0
-    for req, stall in requests_with_stalls:
-        print(f"  - {req.item_name} ({req.quantity} {req.unit}): status={req.status}, approved_qty={req.approved_quantity}")
-        if req.status == "pending":
-            pending_count += 1
-        elif req.status == "approved":
-            approved_count += 1
-    print(f"Pending: {pending_count}, Approved: {approved_count}")
-    print("=== END FETCH ===")
+    rows = result.all()
 
-    if not requests_with_stalls:
-        print("No requests found")
-        print("=== END FETCH ===")
-        return {
-            "message": "No pending requests found",
-            "total_requests": 0,
-            "merged_items": [],
-            "raw_requests": []
-        }
+    # Load full inventory into a dict for fast lookup
+    inv_result = await db.execute(select(Inventory))
+    inventory_map = {}
+    category_map = {}
+    for inv in inv_result.scalars():
+        inventory_map[inv.item_name.lower()] = float(inv.quantity)
+        category_map[inv.item_name.lower()] = inv.vendor_category
 
-    raw_requests = [
-        RawMaterialRequestDetail(
-            id=req.id,
-            stall_id=req.stall_id,
-            stall_name=stall.stall_name,
-            kitchen=stall.kitchen.value,
-            item_name=req.item_name,
-            quantity=req.quantity,
-            approved_quantity=req.approved_quantity,
-            unit=req.unit,
-            created_at=req.created_at,
-            status=req.status
-        )
-        for req, stall in requests_with_stalls
-    ]
-    merged_dict = {}
-    for req, stall in requests_with_stalls:
-        key = f"{req.item_name}_{req.unit}"
-        if key in merged_dict:
-            merged_dict[key]["total_quantity"] += req.quantity
-        else:
-            merged_dict[key] = {
-                "item_name": req.item_name,
-                "total_quantity": req.quantity,
-                "unit": req.unit,
-                "kitchen": stall.kitchen.value
-            }
+    items = []
+    for req, stall in rows:
+        hod_qty = req.hod_quantity or req.quantity
+        in_stock = inventory_map.get(req.item_name.lower(), 0.0)
+        net_required = max(0.0, hod_qty - in_stock)
+        vendor_cat = category_map.get(req.item_name.lower(), "general_provisions")
 
-    merged_items = [
-        MergedItem(**item) for item in merged_dict.values()
-    ]
-    
-    print(f"Returning response with {len(raw_requests)} raw requests and {len(merged_items)} merged items")
-    print("=== END FETCH ===")
+        items.append(HodSubmittedItem(
+            id=req.id, stall_id=req.stall_id, stall_name=stall.stall_name,
+            kitchen=stall.kitchen.value, item_name=req.item_name,
+            chef_quantity=req.quantity, hod_quantity=hod_qty,
+            in_stock=in_stock, net_required=net_required,
+            final_quantity=req.approved_quantity,
+            unit=req.unit, vendor_category=vendor_cat,
+            required_date=req.required_date,
+            created_at=req.created_at, status=req.status
+        ))
 
-    return {
-        "message": "Pending requests retrieved successfully",
-        "total_requests": len(raw_requests),
-        "merged_items": merged_items,
-        "raw_requests": raw_requests
-    }
+    return {"message": "HOD-submitted requests retrieved", "total_items": len(items), "items": items}
 
 
 @router.patch("/orders/request/{request_id}")
-async def update_request_status(
+async def admin_edit_request(
     request_id: uuid.UUID,
-    update_data: UpdateRequestStatusRequest,
+    edit_data: AdminEditItemRequest,
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-    """Update individual raw material request status and approved quantity"""
-    print(f"\n=== UPDATE REQUEST: {request_id} ===")
-    print(f"Requested status: {update_data.status}")
-    print(f"Approved quantity: {update_data.approved_quantity}")
-    
-    result = await db.execute(
-        select(RawMaterialRequests).where(RawMaterialRequests.id == request_id)
-    )
-    request = result.scalar_one_or_none()
-    
-    if not request:
-        print(f"Request not found: {request_id}")
+    """Admin manually overrides final quantity or vendor category for an item."""
+    result = await db.execute(select(RawMaterialRequests).where(RawMaterialRequests.id == request_id))
+    req = result.scalar_one_or_none()
+    if not req:
         raise HTTPException(status_code=404, detail="Request not found")
-    
-    print(f"Current status: {request.status}")
-    
-    if request.status != "pending":
-        print(f"Cannot update: status is {request.status}, not pending")
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Cannot update request with status '{request.status}'"
+    if req.status != "hod_submitted":
+        raise HTTPException(status_code=400, detail="Only HOD-submitted requests can be edited here")
+
+    if edit_data.final_quantity is not None:
+        req.approved_quantity = edit_data.final_quantity
+    if edit_data.item_name is not None:
+        req.item_name = edit_data.item_name
+    if edit_data.unit is not None:
+        req.unit = edit_data.unit
+
+    # Persist vendor_category override into inventory if item exists, else create
+    if edit_data.vendor_category is not None:
+        inv_result = await db.execute(
+            select(Inventory).where(Inventory.item_name.ilike(req.item_name))
         )
-    
-    # Validate status
-    if update_data.status not in ["approved", "rejected"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Status must be 'approved' or 'rejected'"
-        )
-    
-    # Update the request
-    request.status = update_data.status
-    print(f"Updated status to: {request.status}")
-    
-    if update_data.status == "approved":
-        if update_data.approved_quantity is None:
-            # If no approved quantity specified, approve the full requested quantity
-            request.approved_quantity = request.quantity
+        inv = inv_result.scalar_one_or_none()
+        if inv:
+            inv.vendor_category = edit_data.vendor_category
         else:
-            # Validate approved quantity
-            if update_data.approved_quantity < 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Approved quantity cannot be negative"
-                )
-            if update_data.approved_quantity > request.quantity:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Approved quantity cannot exceed requested quantity"
-                )
-            request.approved_quantity = update_data.approved_quantity
-    else:
-        # If rejected, set approved quantity to 0
-        request.approved_quantity = 0
-    
-    print(f"Approved quantity set to: {request.approved_quantity}")
+            db.add(Inventory(
+                item_name=req.item_name, quantity=0,
+                unit=req.unit, vendor_category=edit_data.vendor_category
+            ))
+
     await db.commit()
-    await db.refresh(request)
-    print(f"After commit - status: {request.status}, approved_qty: {request.approved_quantity}")
-    print(f"=== UPDATE COMPLETE ===")
-    
-    return {
-        "message": f"Request {update_data.status} successfully",
-        "id": str(request.id),
-        "item_name": request.item_name,
-        "requested_quantity": request.quantity,
-        "approved_quantity": request.approved_quantity,
-        "status": request.status
-    }
+    await db.refresh(req)
+    return {"message": "Updated", "id": str(req.id)}
 
 
 @router.post("/orders/compile", response_model=CompileOrderResponse)
-async def compile_and_send_to_vendor(
-    order_data: CompileOrderRequest,
+async def compile_and_send_to_vendors(
+    body: CompileRequest | None = None,
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
+    """
+    Compile HOD-submitted items into per-(vendor, required_date) orders.
+    If body.required_date is set, only items for that date are compiled
+    (so admin can approve one day at a time against live inventory).
+    Otherwise, all dates are compiled in one shot (sequential mode).
+    Items with net_required == 0 (fully covered by inventory) are skipped.
+    """
+    target_date = body.required_date if body else None
+
+    query = (
+        select(RawMaterialRequests, Stall)
+        .join(Stall, RawMaterialRequests.stall_id == Stall.id)
+        .where(RawMaterialRequests.status == "hod_submitted")
+    )
+    if target_date is not None:
+        query = query.where(RawMaterialRequests.required_date == target_date)
+
+    result = await db.execute(query)
+    rows = result.all()
+    if not rows:
+        msg = (
+            f"No HOD-submitted requests for {target_date}"
+            if target_date else "No HOD-submitted requests to compile"
+        )
+        raise HTTPException(status_code=400, detail=msg)
+
+    # Load inventory
+    inv_result = await db.execute(select(Inventory))
+    inventory_map = {}
+    category_map = {}
+    for inv in inv_result.scalars():
+        inventory_map[inv.item_name.lower()] = float(inv.quantity)
+        category_map[inv.item_name.lower()] = inv.vendor_category
+
+    # Load all vendor accounts indexed by category
     vendor_result = await db.execute(
         select(User).where(User.role == UserRole.VENDOR)
     )
-    vendor = vendor_result.scalar_one_or_none()
+    vendors = vendor_result.scalars().all()
+    vendor_by_category = {v.vendor_category: v for v in vendors if v.vendor_category}
 
-    if not vendor:
-        raise HTTPException(status_code=404, detail="No vendor found in system")
+    # Bucket items by (required_date, vendor_category)
+    buckets: dict[tuple, list] = {}
 
-    compiled_order = CompiledOrders(
-        vendor_id=vendor.id,
-        status="pending",
-        total_items=len(order_data.items)
-    )
-    db.add(compiled_order)
-    await db.flush()
+    for req, stall in rows:
+        hod_qty = req.hod_quantity or req.quantity
+        in_stock = inventory_map.get(req.item_name.lower(), 0.0)
+        if req.approved_quantity is not None:
+            final_qty = req.approved_quantity
+        else:
+            final_qty = max(0, hod_qty - in_stock)
 
-    created_orders = []
-    for item in order_data.items:
-        order = Orders(
-            compiled_order_id=compiled_order.id,
-            item_name=item.item_name,
-            total_quantity=item.total_quantity,
-            unit=item.unit
-        )
-        db.add(order)
-        created_orders.append({
-            "item_name": item.item_name,
-            "total_quantity": item.total_quantity,
-            "unit": item.unit
+        if final_qty <= 0:
+            req.status = "admin_rejected"
+            continue
+
+        vendor_cat = category_map.get(req.item_name.lower(), "general_provisions")
+        key = (req.required_date, vendor_cat)
+        buckets.setdefault(key, []).append({
+            "req": req,
+            "item_name": req.item_name,
+            "final_qty": int(final_qty),
+            "unit": req.unit,
         })
-    
-    # Mark only approved requests as compiled
-    approved_requests = await db.execute(
-        select(RawMaterialRequests).where(RawMaterialRequests.status == "approved")
-    )
-    for req in approved_requests.scalars():
-        req.status = "compiled"
-    
-    # Mark rejected requests as rejected (they won't be compiled)
-    rejected_requests = await db.execute(
-        select(RawMaterialRequests).where(RawMaterialRequests.status == "rejected")
-    )
-    for req in rejected_requests.scalars():
-        req.status = "rejected"
+
+    compiled_summaries = []
+    for (req_date, cat), items in buckets.items():
+        vendor = vendor_by_category.get(cat)
+        if not vendor:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No vendor account found for category '{cat}'. Please create one first."
+            )
+
+        compiled_order = CompiledOrders(
+            vendor_id=vendor.id,
+            vendor_category=cat,
+            required_date=req_date,
+            status="pending",
+            total_items=len(items)
+        )
+        db.add(compiled_order)
+        await db.flush()
+
+        for it in items:
+            order = Orders(
+                compiled_order_id=compiled_order.id,
+                item_name=it["item_name"],
+                total_quantity=it["final_qty"],
+                unit=it["unit"]
+            )
+            db.add(order)
+            it["req"].status = "admin_compiled"
+
+        compiled_summaries.append({
+            "compiled_order_id": str(compiled_order.id),
+            "vendor_category": cat,
+            "vendor_email": vendor.email,
+            "required_date": req_date.isoformat() if req_date else None,
+            "total_items": len(items),
+            "items": [{"item_name": i["item_name"], "quantity": i["final_qty"], "unit": i["unit"]} for i in items]
+        })
+
+    # Deduct compiled quantities from inventory
+    for req, stall in rows:
+        if req.status == "admin_compiled":
+            inv_result2 = await db.execute(
+                select(Inventory).where(Inventory.item_name.ilike(req.item_name))
+            )
+            inv = inv_result2.scalar_one_or_none()
+            if inv:
+                hod_qty = req.hod_quantity or req.quantity
+                in_stock = float(inv.quantity)
+                deduct = min(in_stock, hod_qty)
+                inv.quantity = max(0, in_stock - deduct)
 
     await db.commit()
-
-    return {
-        "message": "Order compiled and sent to vendor successfully",
-        "compiled_order_id": str(compiled_order.id),
-        "total_items": len(created_orders),
-        "items": created_orders
-    }
+    return {"message": "Orders compiled and sent to vendors", "compiled_orders": compiled_summaries}
 
 
 @router.get("/orders/compiled", response_model=List[CompiledOrderDetail])
@@ -248,93 +299,193 @@ async def get_compiled_orders(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
-    print("\n=== FETCHING COMPILED ORDERS ===")
-    compiled_orders_result = await db.execute(
-        select(CompiledOrders).order_by(CompiledOrders.created_at.desc())
+    result = await db.execute(
+        select(CompiledOrders).order_by(
+            CompiledOrders.required_date.desc().nullslast(),
+            CompiledOrders.created_at.desc(),
+        )
     )
-    compiled_orders = compiled_orders_result.scalars().all()
-    print(f"Found {len(compiled_orders)} compiled orders")
+    compiled_orders = result.scalars().all()
 
-    result = []
-    for compiled_order in compiled_orders:
-        orders_result = await db.execute(
-            select(Orders).where(Orders.compiled_order_id == compiled_order.id)
-        )
-        orders = orders_result.scalars().all()
-        print(f"  Order {compiled_order.id}: {len(orders)} items")
+    # Build a vendor_id -> email map in one query
+    vendor_ids = {co.vendor_id for co in compiled_orders if co.vendor_id}
+    vendor_email_map = {}
+    if vendor_ids:
+        vres = await db.execute(select(User).where(User.id.in_(vendor_ids)))
+        vendor_email_map = {v.id: v.email for v in vres.scalars()}
 
-        order_details = [
-            OrderDetail(
-                order_id=str(order.id),
-                item_name=order.item_name,
-                total_quantity=order.total_quantity,
-                delivered_quantity=order.delivered_quantity,
-                unit=order.unit,
-                unit_price=float(order.unit_price) if order.unit_price else None,
-                total_price=float(order.total_price) if order.total_price else None
-            )
-            for order in orders
-        ]
-        
-        print(f"    Items: {[item.item_name for item in order_details]}")
-
-        result.append(
-            CompiledOrderDetail(
-                id=str(compiled_order.id),
-                created_at=compiled_order.created_at,
-                vendor_id=str(compiled_order.vendor_id) if compiled_order.vendor_id else None,
-                status=compiled_order.status,
-                total_items=compiled_order.total_items,
-                total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
-                items=order_details
-            )
-        )
-    
-    print(f"Returning {len(result)} compiled orders")
-    print("=== END FETCH ===")
-    return result
+    out = []
+    for co in compiled_orders:
+        orders_res = await db.execute(select(Orders).where(Orders.compiled_order_id == co.id))
+        orders = orders_res.scalars().all()
+        out.append(CompiledOrderDetail(
+            id=str(co.id), created_at=co.created_at,
+            vendor_id=str(co.vendor_id) if co.vendor_id else None,
+            vendor_email=vendor_email_map.get(co.vendor_id),
+            vendor_category=co.vendor_category,
+            required_date=co.required_date,
+            status=co.status, total_items=co.total_items,
+            total_price=float(co.total_price) if co.total_price else None,
+            invoice_number=co.invoice_number,
+            delivered_at=co.delivered_at,
+            items=[
+                OrderDetail(
+                    order_id=str(o.id), item_name=o.item_name,
+                    total_quantity=o.total_quantity, delivered_quantity=o.delivered_quantity,
+                    unit=o.unit,
+                    unit_price=float(o.unit_price) if o.unit_price else None,
+                    total_price=float(o.total_price) if o.total_price else None
+                ) for o in orders
+            ]
+        ))
+    return out
 
 
-@router.get("/orders/compiled/{compiled_order_id}", response_model=CompiledOrderDetail)
-async def get_compiled_order_by_id(
-    compiled_order_id: uuid.UUID,
+# ── BILLS (aggregated by daily / weekly / monthly) ───────────────────────────
+
+CATEGORY_PREFIX = {
+    "seafood": "SEA",
+    "vegetables_fruits": "VEG",
+    "general_provisions": "GEN",
+}
+
+
+def _week_bounds(d: date) -> tuple[date, date, str, str]:
+    """Return (monday, sunday, iso_year_week_key, label) for the ISO week containing d."""
+    monday = d - timedelta(days=d.weekday())
+    sunday = monday + timedelta(days=6)
+    iso_year, iso_week, _ = monday.isocalendar()
+    key = f"{iso_year}-W{iso_week:02d}"
+    label = f"Week {iso_week} · {monday.strftime('%d %b')} – {sunday.strftime('%d %b %Y')}"
+    return monday, sunday, key, label
+
+
+def _month_bounds(d: date) -> tuple[date, date, str, str]:
+    first = d.replace(day=1)
+    if first.month == 12:
+        next_first = first.replace(year=first.year + 1, month=1)
+    else:
+        next_first = first.replace(month=first.month + 1)
+    last = next_first - timedelta(days=1)
+    key = f"{first.year}-{first.month:02d}"
+    label = first.strftime("%B %Y")
+    return first, last, key, label
+
+
+@router.get("/bills", response_model=BillsResponse)
+async def get_bills(
+    view: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
+    vendor_category: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(require_role(UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Get specific compiled order details"""
-
-    compiled_order_result = await db.execute(
-        select(CompiledOrders).where(CompiledOrders.id == compiled_order_id)
+    """
+    Aggregate delivered compiled-orders into daily / weekly / monthly bills,
+    grouped per vendor category. Daily buckets map 1:1 to a real invoice;
+    weekly/monthly buckets compute a roll-up invoice ref (WK-…, MTH-…).
+    """
+    query = (
+        select(CompiledOrders)
+        .where(CompiledOrders.status == "delivered")
+        .order_by(CompiledOrders.delivered_at.asc())
     )
-    compiled_order = compiled_order_result.scalar_one_or_none()
+    if vendor_category:
+        query = query.where(CompiledOrders.vendor_category == vendor_category)
+    if start_date is not None:
+        query = query.where(CompiledOrders.delivered_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date is not None:
+        # inclusive end-of-day
+        query = query.where(CompiledOrders.delivered_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
 
-    if not compiled_order:
-        raise HTTPException(status_code=404, detail="Compiled order not found")
+    result = await db.execute(query)
+    orders = result.scalars().all()
 
-    orders_result = await db.execute(
-        select(Orders).where(Orders.compiled_order_id == compiled_order.id)
+    # Vendor email lookup
+    vendor_ids = {o.vendor_id for o in orders if o.vendor_id}
+    vendor_email_map: dict = {}
+    if vendor_ids:
+        vres = await db.execute(select(User).where(User.id.in_(vendor_ids)))
+        vendor_email_map = {v.id: v.email for v in vres.scalars()}
+
+    # Group key: depends on view; always partition by vendor_category
+    buckets: dict[tuple, dict] = defaultdict(lambda: {
+        "period_start": None, "period_end": None, "label": "",
+        "invoice_ref": "", "constituents": [],
+        "total_price": 0.0, "total_items": 0,
+    })
+
+    for o in orders:
+        if not o.delivered_at:
+            continue
+        delivered_day = o.delivered_at.date()
+        cat = o.vendor_category or "general_provisions"
+        cat_prefix = CATEGORY_PREFIX.get(cat, "GEN")
+
+        if view == "daily":
+            key = delivered_day.isoformat()
+            label = delivered_day.strftime("%a, %d %b %Y")
+            period_start = period_end = delivered_day
+            # Use the order's own invoice; one bill = one order at daily view
+            invoice_ref = o.invoice_number or f"INV-{delivered_day.strftime('%Y%m%d')}-{cat_prefix}"
+        elif view == "weekly":
+            monday, sunday, wkey, label = _week_bounds(delivered_day)
+            key = wkey
+            period_start, period_end = monday, sunday
+            iso_year, iso_week, _ = monday.isocalendar()
+            invoice_ref = f"WK-{iso_year}{iso_week:02d}-{cat_prefix}"
+        else:  # monthly
+            first, last, mkey, label = _month_bounds(delivered_day)
+            key = mkey
+            period_start, period_end = first, last
+            invoice_ref = f"MTH-{first.year}{first.month:02d}-{cat_prefix}"
+
+        bucket_key = (key, cat)
+        b = buckets[bucket_key]
+        b["period_start"] = period_start
+        b["period_end"] = period_end
+        b["label"] = label
+        b["invoice_ref"] = invoice_ref
+        b["vendor_email"] = vendor_email_map.get(o.vendor_id)
+        b["vendor_category"] = cat
+        b["bucket_key"] = key
+        b["total_price"] += float(o.total_price or 0)
+        b["total_items"] += int(o.total_items or 0)
+        b["constituents"].append(BillConstituent(
+            compiled_order_id=str(o.id),
+            invoice_number=o.invoice_number,
+            delivered_at=o.delivered_at,
+            required_date=o.required_date,
+            total_price=float(o.total_price or 0),
+            total_items=int(o.total_items or 0),
+        ))
+
+    # Sort: most recent period first, then category
+    out_buckets = sorted(
+        buckets.values(),
+        key=lambda b: (b["period_start"], b["vendor_category"]),
+        reverse=True,
     )
-    orders = orders_result.scalars().all()
 
-    order_details = [
-        OrderDetail(
-            order_id=str(order.id),
-            item_name=order.item_name,
-            total_quantity=order.total_quantity,
-            delivered_quantity=order.delivered_quantity,
-            unit=order.unit,
-            unit_price=float(order.unit_price) if order.unit_price else None,
-            total_price=float(order.total_price) if order.total_price else None
-        )
-        for order in orders
-    ]
-
-    return CompiledOrderDetail(
-        id=str(compiled_order.id),
-        created_at=compiled_order.created_at,
-        vendor_id=str(compiled_order.vendor_id) if compiled_order.vendor_id else None,
-        status=compiled_order.status,
-        total_items=compiled_order.total_items,
-        total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
-        items=order_details
+    return BillsResponse(
+        view=view,
+        start_date=start_date,
+        end_date=end_date,
+        buckets=[
+            BillBucket(
+                bucket_key=b["bucket_key"],
+                bucket_label=b["label"],
+                period_start=b["period_start"],
+                period_end=b["period_end"],
+                vendor_category=b["vendor_category"],
+                vendor_email=b.get("vendor_email"),
+                invoice_ref=b["invoice_ref"],
+                total_price=round(b["total_price"], 2),
+                total_orders=len(b["constituents"]),
+                total_items=b["total_items"],
+                constituents=b["constituents"],
+            )
+            for b in out_buckets
+        ],
     )

@@ -1,25 +1,23 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 
 
-class MergedItem(BaseModel):
-    item_name: str
-    total_quantity: int
-    unit: str
-    kitchen: str
-
-
-class RawMaterialRequestDetail(BaseModel):
+class HodSubmittedItem(BaseModel):
     id: uuid.UUID
     stall_id: uuid.UUID
     stall_name: str
     kitchen: str
     item_name: str
-    quantity: int
-    approved_quantity: Optional[int] = None
+    chef_quantity: int
+    hod_quantity: int
+    in_stock: float          # from inventory
+    net_required: float      # max(0, hod_quantity - in_stock)
+    final_quantity: Optional[int] = None   # admin override
     unit: str
+    vendor_category: str     # from inventory / item mapping
+    required_date: Optional[date] = None
     created_at: datetime
     status: str
 
@@ -27,33 +25,44 @@ class RawMaterialRequestDetail(BaseModel):
         from_attributes = True
 
 
-class PendingOrdersResponse(BaseModel):
+class HodSubmittedResponse(BaseModel):
     message: str
-    total_requests: int
-    merged_items: List[MergedItem]
-    raw_requests: List[RawMaterialRequestDetail]
+    total_items: int
+    items: List[HodSubmittedItem]
 
 
-class CompileOrderItem(BaseModel):
+class AdminEditItemRequest(BaseModel):
+    final_quantity: Optional[int] = None
+    vendor_category: Optional[str] = None
+    item_name: Optional[str] = None
+    unit: Optional[str] = None
+
+
+class InventoryItem(BaseModel):
+    id: Optional[uuid.UUID] = None
     item_name: str
-    total_quantity: int
+    quantity: float
     unit: str
+    vendor_category: str  # seafood / vegetables_fruits / general_provisions
+
+    class Config:
+        from_attributes = True
 
 
-class CompileOrderRequest(BaseModel):
-    items: List[CompileOrderItem]
+class InventoryUpsertRequest(BaseModel):
+    item_name: str
+    quantity: float
+    unit: str
+    vendor_category: str
 
 
-class UpdateRequestStatusRequest(BaseModel):
-    status: str  # approved, rejected
-    approved_quantity: Optional[int] = None
+class CompileRequest(BaseModel):
+    required_date: Optional[date] = None  # if set, only compile items for this date
 
 
 class CompileOrderResponse(BaseModel):
     message: str
-    compiled_order_id: str
-    total_items: int
-    items: List[dict]
+    compiled_orders: List[dict]
 
 
 class OrderDetail(BaseModel):
@@ -70,10 +79,49 @@ class CompiledOrderDetail(BaseModel):
     id: str
     created_at: datetime
     vendor_id: Optional[str]
+    vendor_email: Optional[str] = None
+    vendor_category: Optional[str]
+    required_date: Optional[date] = None
     status: str
     total_items: int
     total_price: Optional[float] = None
+    invoice_number: Optional[str] = None
+    delivered_at: Optional[datetime] = None
     items: List[OrderDetail]
+
+
+# ── BILLS ────────────────────────────────────────────────────────────────────
+
+class BillConstituent(BaseModel):
+    """A single compiled-order bill that contributed to a roll-up."""
+    compiled_order_id: str
+    invoice_number: Optional[str] = None
+    delivered_at: Optional[datetime] = None
+    required_date: Optional[date] = None
+    total_price: float
+    total_items: int
+
+
+class BillBucket(BaseModel):
+    """One aggregated bill row (daily / weekly / monthly per vendor category)."""
+    bucket_key: str           # e.g. '2026-05-22', '2026-W21', '2026-05'
+    bucket_label: str         # human readable
+    period_start: date
+    period_end: date
+    vendor_category: str
+    vendor_email: Optional[str] = None
+    invoice_ref: str          # INV-… for daily; WK-… / MTH-… for roll-ups
+    total_price: float
+    total_orders: int
+    total_items: int
+    constituents: List[BillConstituent]
+
+
+class BillsResponse(BaseModel):
+    view: str                 # 'daily' | 'weekly' | 'monthly'
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    buckets: List[BillBucket]
 
     class Config:
         from_attributes = True

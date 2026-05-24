@@ -10,7 +10,7 @@ from fastapi_users.authentication import (
 )
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import Column, String, Enum as AlchemyEnum, DateTime
+from sqlalchemy import Column, String, Enum as AlchemyEnum, DateTime, Text
 from ihm_backend.db.base import Base
 from ihm_backend.db.dependencies import get_db_session
 from ihm_backend.settings import settings
@@ -23,6 +23,7 @@ class UserRole(str, enum.Enum):
     ADMIN = "admin"
     STALL_OWNER = "stall"
     VENDOR = "vendor"
+    HOD = "hod"
 
 
 class Kitchen(str, enum.Enum):
@@ -33,19 +34,29 @@ class Kitchen(str, enum.Enum):
     CRAFT = "CRAFT"
 
 
+class VendorCategory(str, enum.Enum):
+    """vendor specialisation"""
+    SEAFOOD = "seafood"
+    VEGETABLES_FRUITS = "vegetables_fruits"
+    GENERAL_PROVISIONS = "general_provisions"
+
+
 class User(SQLAlchemyBaseUserTableUUID, Base):
     """Represents a user entity."""
 
     role: UserRole = Column(AlchemyEnum(UserRole), nullable=False)
     kitchen: Kitchen | None = Column(AlchemyEnum(Kitchen), nullable=True)
+    vendor_category: str | None = Column(String, nullable=True)  # seafood / vegetables_fruits / general_provisions
     created_at: datetime = Column(DateTime, default=datetime.utcnow())
     stalls = relationship("Stall", back_populates="operator", lazy="select")
+
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     """Represents a read command for a user."""
 
     role: UserRole
     kitchen: Kitchen | None
+    vendor_category: str | None
     created_at: datetime
 
 
@@ -55,6 +66,7 @@ class UserCreate(schemas.BaseUserCreate):
     role: UserRole = UserRole.STALL_OWNER
     kitchen: Kitchen | None = None
     stall_name: str | None = None
+    vendor_category: str | None = None
 
 
 class UserUpdate(schemas.BaseUserUpdate):
@@ -62,6 +74,7 @@ class UserUpdate(schemas.BaseUserUpdate):
 
     role: UserRole | None = None
     kitchen: Kitchen | None = None
+    vendor_category: str | None = None
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

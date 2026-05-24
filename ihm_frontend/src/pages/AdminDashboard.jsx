@@ -1,10 +1,20 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Eye, Plus, Users, Clock, LogOut, CheckCircle, AlertCircle, Download, Moon, Sun } from 'lucide-react';
-import { adminAPI } from '../services/api';
-import { authAPI } from '../services/api';
+import {
+  Eye, Plus, Clock, LogOut, Moon, Sun, Package,
+  ChevronDown, ChevronRight, Trash2, Edit2, Check, X, Receipt
+} from 'lucide-react';
+import { adminAPI, authAPI } from '../services/api';
 import toast from 'react-hot-toast';
+
+const VENDOR_CATEGORIES = [
+  { value: 'seafood', label: 'Seafood' },
+  { value: 'vegetables_fruits', label: 'Vegetables & Fruits' },
+  { value: 'general_provisions', label: 'General Provisions' },
+];
+
+const catLabel = (v) => VENDOR_CATEGORIES.find(c => c.value === v)?.label || v;
 
 const DashboardStyles = () => (
   <style>{`
@@ -16,460 +26,150 @@ const DashboardStyles = () => (
       animation: gradientMove 15s ease infinite;
       overflow: hidden;
     }
-
     .sidebar {
-      width: 280px;
+      width: 260px;
       background: var(--glass-bg);
       backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
       border-right: 1px solid var(--glass-border);
       display: flex;
       flex-direction: column;
       box-shadow: var(--shadow-md);
       z-index: 10;
     }
-
-    .sidebar-header {
-      padding: var(--spacing-lg);
-      border-bottom: 1px solid var(--glass-border);
-      background: transparent;
-    }
-
-    .sidebar-title {
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: var(--primary-700);
-      letter-spacing: -0.01em;
-      margin-bottom: var(--spacing-sm);
-    }
-
-    .sidebar-subtitle {
-      font-size: var(--text-xs);
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .sidebar-nav {
-      flex: 1;
-      padding: var(--spacing-md);
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-    }
-
+    .sidebar-header { padding: var(--spacing-lg); border-bottom: 1px solid var(--glass-border); }
+    .sidebar-title { font-size: 1.75rem; font-weight: 700; color: var(--primary-700); margin-bottom: var(--spacing-sm); }
+    .sidebar-subtitle { font-size: var(--text-xs); color: var(--text-muted); font-weight: 500; }
+    .sidebar-nav { flex: 1; padding: var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-sm); }
     .sidebar-link {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
-      padding: var(--spacing-md);
-      color: var(--text-secondary);
-      border-radius: var(--radius-lg);
-      cursor: pointer;
-      transition: all var(--transition-base);
-      border: none;
-      background: none;
-      font-family: var(--font-body);
-      font-size: var(--text-sm);
-      font-weight: 500;
+      display: flex; align-items: center; gap: var(--spacing-sm);
+      padding: var(--spacing-md); color: var(--text-secondary);
+      border-radius: var(--radius-lg); cursor: pointer;
+      transition: all var(--transition-base); border: none;
+      background: none; font-family: var(--font-body);
+      font-size: var(--text-sm); font-weight: 500; width: 100%;
     }
-
-    .sidebar-link:hover {
-      background: var(--bg-secondary);
-      color: var(--primary-600);
-    }
-
+    .sidebar-link:hover { background: var(--bg-secondary); color: var(--primary-600); }
     .sidebar-link.active {
       background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
-      color: var(--text-inverse);
-      box-shadow: var(--shadow-md);
+      color: var(--text-inverse); box-shadow: var(--shadow-md);
     }
-
-    .sidebar-link svg {
-      width: 20px;
-      height: 20px;
-    }
-
-    .main-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      min-height: 0;
-      min-width: 0;
-    }
-
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; min-width: 0; }
     .header {
-      background: var(--glass-bg);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
+      background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
       border-bottom: 1px solid var(--glass-border);
       padding: var(--spacing-lg) var(--spacing-2xl);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: var(--shadow-sm);
-      z-index: 5;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: var(--shadow-sm); z-index: 5;
     }
-
-    .header-title {
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
+    .header-title { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary); }
     .btn-logout {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
+      display: flex; align-items: center; gap: var(--spacing-sm);
       padding: var(--spacing-sm) var(--spacing-lg);
-      background: var(--danger-500);
-      color: white;
-      border: none;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: var(--text-sm);
+      background: var(--danger-500); color: white;
+      border: none; border-radius: var(--radius-md);
+      cursor: pointer; font-weight: 600; font-size: var(--text-sm);
       transition: all var(--transition-fast);
     }
-
-    .btn-logout:hover {
-      background: var(--danger-600);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-    }
-
+    .btn-logout:hover { background: var(--danger-600); transform: translateY(-2px); }
     .btn-theme-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      color: var(--text-secondary);
-      transition: all var(--transition-fast);
+      display: flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px; background: var(--bg-secondary);
+      border: 1px solid var(--border-default); border-radius: var(--radius-md);
+      cursor: pointer; color: var(--text-secondary); transition: all var(--transition-fast);
     }
-
-    .btn-theme-toggle:hover {
-      background: var(--bg-tertiary);
-      color: var(--primary-600);
-    }
-
-    .page-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: var(--spacing-2xl);
-      min-height: 0;
-    }
-
-    .page-section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-2xl);
-    }
-
-    .page-title {
-      font-size: var(--text-2xl);
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .page-description {
-      font-size: var(--text-sm);
-      color: var(--text-muted);
-    }
-
+    .btn-theme-toggle:hover { background: var(--bg-tertiary); color: var(--primary-600); }
+    .page-content { flex: 1; overflow-y: auto; padding: var(--spacing-2xl); min-height: 0; }
+    .page-section { display: flex; flex-direction: column; gap: var(--spacing-2xl); }
+    .page-title { font-size: var(--text-2xl); font-weight: 700; color: var(--text-primary); }
+    .page-description { font-size: var(--text-sm); color: var(--text-muted); }
     .card {
-      background: var(--glass-bg);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
-      border-radius: var(--radius-xl);
-      padding: var(--spacing-2xl);
-      box-shadow: var(--glass-shadow);
-      border: 1px solid var(--glass-border);
-      animation: fadeIn 0.4s ease-out forwards;
-      transition: all var(--transition-base);
+      background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+      border-radius: var(--radius-xl); padding: var(--spacing-2xl);
+      box-shadow: var(--glass-shadow); border: 1px solid var(--glass-border);
+      animation: fadeIn 0.4s ease-out forwards; transition: all var(--transition-base);
     }
-    
-    .card:hover {
-      box-shadow: var(--shadow-xl);
-      transform: translateY(-4px);
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: var(--spacing-lg);
-      margin-bottom: var(--spacing-2xl);
-    }
-
-    .stat-card {
-      background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
-      border-radius: var(--radius-lg);
-      padding: var(--spacing-lg);
-      border: 1px solid var(--glass-border);
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-      box-shadow: var(--shadow-sm);
-      transition: transform var(--transition-base);
-    }
-    
-    .stat-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-
-    .stat-label {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-    }
-
-    .stat-value {
-      font-size: var(--text-2xl);
-      font-weight: 700;
-      color: var(--primary-700);
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-    }
-
-    .form-label {
-      font-size: var(--text-sm);
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
+    .form-group { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+    .form-label { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); }
     .form-input, .form-select {
-      padding: 0.75rem 1rem;
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-md);
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      font-family: var(--font-body);
-      font-size: var(--text-base);
-      transition: all var(--transition-fast);
+      padding: 0.75rem 1rem; border: 1px solid var(--border-default);
+      border-radius: var(--radius-md); background: var(--bg-primary);
+      color: var(--text-primary); font-family: var(--font-body);
+      font-size: var(--text-base); transition: all var(--transition-fast);
     }
-
     .form-input:focus, .form-select:focus {
-      outline: none;
-      border-color: var(--primary-500);
+      outline: none; border-color: var(--primary-500);
       box-shadow: 0 0 0 3px var(--primary-100);
     }
-
-    .table-container {
-      overflow-x: auto;
-    }
-
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
+    .table-container { overflow-x: auto; }
+    .table { width: 100%; border-collapse: collapse; }
     .table th {
-      background: var(--bg-secondary);
-      padding: var(--spacing-md);
-      text-align: left;
-      font-weight: 600;
-      font-size: var(--text-xs);
-      color: var(--text-secondary);
-      text-transform: uppercase;
+      background: var(--bg-secondary); padding: var(--spacing-md);
+      text-align: left; font-weight: 600; font-size: var(--text-xs);
+      color: var(--text-secondary); text-transform: uppercase;
       border-bottom: 2px solid var(--border-default);
     }
-
-    .table td {
-      padding: var(--spacing-md);
-      border-bottom: 1px solid var(--border-light);
-    }
-
-    .table tbody tr:hover {
-      background: var(--bg-secondary);
-    }
-    
-    .table tbody tr {
-      animation: fadeIn 0.3s ease-out forwards;
-    }
-
+    .table td { padding: var(--spacing-md); border-bottom: 1px solid var(--border-light); }
+    .table tbody tr:hover { background: var(--bg-secondary); }
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--spacing-sm);
-      padding: 0.75rem 1.5rem;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: var(--spacing-sm); padding: 0.75rem 1.5rem;
       background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
-      color: white;
-      border: none;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: var(--text-sm);
-      transition: all var(--transition-fast);
-      box-shadow: var(--shadow-md);
+      color: white; border: none; border-radius: var(--radius-md);
+      cursor: pointer; font-weight: 600; font-size: var(--text-sm);
+      transition: all var(--transition-fast); box-shadow: var(--shadow-md);
     }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
+    .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-sm { padding: 0.4rem 0.85rem; font-size: var(--text-xs); }
+    .btn-success { background: linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%); }
+    .btn-danger { background: var(--danger-600); box-shadow: none; }
+    .btn-danger:hover { background: var(--danger-700); }
+    .btn-ghost {
+      background: transparent; color: var(--text-secondary);
+      border: 1px solid var(--border-default); box-shadow: none;
     }
-
-    .btn-small {
-      padding: 0.5rem 1rem;
-      font-size: var(--text-xs);
-    }
-
-    .btn-success {
-      background: linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%);
-    }
-
-    .btn-danger {
-      background: var(--danger-600);
-    }
-
-    .btn-danger:hover {
-      background: var(--danger-700);
-    }
-
+    .btn-ghost:hover { background: var(--bg-secondary); color: var(--text-primary); }
     .status-badge {
-      display: inline-block;
-      padding: var(--spacing-xs) var(--spacing-md);
-      border-radius: var(--radius-full);
-      font-size: var(--text-xs);
-      font-weight: 600;
-      text-transform: capitalize;
+      display: inline-block; padding: 2px 10px;
+      border-radius: var(--radius-full); font-size: var(--text-xs);
+      font-weight: 600; text-transform: capitalize;
     }
-
-    .status-pending {
-      background: var(--warning-50);
-      color: var(--warning-700);
+    .status-pending { background: var(--warning-50); color: var(--warning-700); }
+    .status-completed, .status-delivered { background: var(--success-50); color: var(--success-700); }
+    .status-cancelled { background: var(--danger-50); color: var(--danger-700); }
+    .status-hod_submitted { background: var(--primary-50); color: var(--primary-700); }
+    .status-admin_compiled { background: var(--success-50); color: var(--success-700); }
+    .status-admin_rejected { background: var(--danger-50); color: var(--danger-700); }
+    .inline-edit { padding: 4px 8px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); font-size: var(--text-sm); width: 100%; }
+    .inline-edit:focus { outline: none; border-color: var(--primary-500); }
+    .cat-chip {
+      display: inline-block; padding: 2px 8px; border-radius: var(--radius-full);
+      font-size: 11px; font-weight: 600;
     }
-
-    .status-approved {
-      background: var(--success-50);
-      color: var(--success-700);
+    .cat-seafood { background: #e0f2fe; color: #0369a1; }
+    .cat-vegetables_fruits { background: #dcfce7; color: #15803d; }
+    .cat-general_provisions { background: #fef9c3; color: #854d0e; }
+    .net-zero { color: var(--success-600); font-weight: 600; }
+    .net-positive { color: var(--danger-600); font-weight: 600; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--spacing-md); }
+    .section-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: var(--spacing-lg);
     }
-
-    .status-rejected {
-      background: var(--danger-50);
-      color: var(--danger-700);
-    }
-
-    .status-completed {
-      background: var(--success-50);
-      color: var(--success-700);
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: var(--spacing-sm);
-      flex-wrap: wrap;
-    }
-
-    @media (max-width: 768px) {
-      .dashboard-container {
-        flex-direction: column;
-      }
-
-      .sidebar {
-        width: 100%;
-        min-height: auto;
-        flex-direction: column;
-        border-right: none;
-        border-bottom: 1px solid var(--border-default);
-      }
-
-      .sidebar-header {
-        padding: var(--spacing-md) var(--spacing-lg);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .sidebar-title {
-        font-size: 1.25rem;
-        margin: 0;
-      }
-
-      .sidebar-nav {
-        flex-direction: row;
-        gap: var(--spacing-sm);
-        padding: var(--spacing-sm) var(--spacing-md);
-        overflow-x: auto;
-        white-space: nowrap;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      .sidebar-nav::-webkit-scrollbar {
-        display: none;
-      }
-
-      .sidebar-link {
-        padding: var(--spacing-sm) var(--spacing-md);
-        font-size: var(--text-xs);
-        white-space: nowrap;
-      }
-
-      .main-content {
-        flex: 1;
-      }
-
-      .header {
-        padding: var(--spacing-md) var(--spacing-lg);
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: var(--spacing-md);
-      }
-
-      .header-title {
-        font-size: var(--text-base);
-      }
-
-      .page-content {
-        padding: var(--spacing-lg);
-      }
-
-      .table-container {
-        font-size: 0.875rem;
-        overflow-x: auto;
-      }
-
-      table {
-        font-size: var(--text-xs);
-      }
-
-      th, td {
-        padding: 0.5rem;
-      }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .card {
-        padding: var(--spacing-md);
-      }
-    }
+    .section-title { font-size: var(--text-xl); font-weight: 600; margin: 0; }
+    .empty-state { padding: 3rem; text-align: center; color: var(--text-muted); }
+    .order-row-clickable:hover { background: var(--primary-50, var(--bg-tertiary)) !important; }
   `}</style>
 );
 
 const Sidebar = ({ activePage, setActivePage }) => {
   const links = [
-    { id: 'view-orders', label: 'View Orders', icon: Eye },
-    { id: 'vendor-status', label: 'Vendor Status', icon: AlertCircle },
-    { id: 'history', label: 'History', icon: Clock },
-    { id: 'create-account', label: 'Create Account', icon: Plus }
+    { id: 'inventory', label: 'Inventory', icon: Package },
+    { id: 'orders', label: 'Pending Orders', icon: Eye },
+    { id: 'history', label: 'Vendor Orders', icon: Clock },
+    { id: 'bills', label: 'Bills', icon: Receipt },
+    { id: 'create-account', label: 'Create Account', icon: Plus },
   ];
-
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -478,13 +178,8 @@ const Sidebar = ({ activePage, setActivePage }) => {
       </div>
       <nav className="sidebar-nav">
         {links.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={`sidebar-link ${activePage === id ? 'active' : ''}`}
-            onClick={() => setActivePage(id)}
-          >
-            <Icon size={20} />
-            {label}
+          <button key={id} className={`sidebar-link ${activePage === id ? 'active' : ''}`} onClick={() => setActivePage(id)}>
+            <Icon size={20} />{label}
           </button>
         ))}
       </nav>
@@ -494,834 +189,633 @@ const Sidebar = ({ activePage, setActivePage }) => {
 
 const Header = ({ onLogout }) => {
   const { theme, toggleTheme } = useTheme();
-  
   return (
     <header className="header">
       <h2 className="header-title">Welcome, Admin</h2>
       <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
-        <button 
-          className="btn-theme-toggle" 
-          onClick={toggleTheme}
-          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        >
+        <button className="btn-theme-toggle" onClick={toggleTheme} title="Toggle theme">
           {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
         </button>
-        <button className="btn-logout" onClick={onLogout}>
-          <LogOut size={18} />
-          Logout
-        </button>
+        <button className="btn-logout" onClick={onLogout}><LogOut size={18} />Logout</button>
       </div>
     </header>
   );
 };
 
-const ViewOrdersPage = () => {
-  const [orders, setOrders] = React.useState([]);
-  const [approvedOrders, setApprovedOrders] = React.useState([]);
+// ── INVENTORY TAB ─────────────────────────────────────────────────────────────
+
+const InventoryPage = () => {
+  const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-  const [compiling, setCompiling] = React.useState(false);
+  const [form, setForm] = React.useState({ item_name: '', quantity: '', unit: '', vendor_category: 'general_provisions' });
+  const [saving, setSaving] = React.useState(false);
+  const [editId, setEditId] = React.useState(null);
+  const [editForm, setEditForm] = React.useState({});
 
-  React.useEffect(() => {
-    loadPendingOrders();
-  }, []);
+  React.useEffect(() => { load(); }, []);
 
-  const loadPendingOrders = async () => {
+  const load = async () => {
     try {
       setLoading(true);
-      setError(null);
-      console.log('Loading pending and approved orders...');
-      const response = await adminAPI.getPendingOrders();
-      console.log('Full response:', response);
-      console.log('Raw requests:', response.raw_requests);
-      
-      const pendingReqs = response.raw_requests?.filter(r => r.status === 'pending') || [];
-      const approvedReqs = response.raw_requests?.filter(r => r.status === 'approved') || [];
-      
-      console.log('Pending orders count:', pendingReqs.length);
-      console.log('Approved orders count:', approvedReqs.length);
-      console.log('Approved orders:', approvedReqs);
-      
-      setOrders(pendingReqs);
-      setApprovedOrders(approvedReqs);
-    } catch (error) {
-      console.error('Error loading pending orders:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load pending orders';
-      setError(errorMsg);
+      const data = await adminAPI.getInventory();
+      setItems(data);
+    } catch (e) {
+      toast.error('Failed to load inventory');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCompileOrders = async () => {
-    if (approvedOrders.length === 0) {
-      toast.error('No approved orders to compile');
-      return;
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!form.item_name || !form.quantity || !form.unit) { toast.error('Fill all fields'); return; }
+    try {
+      setSaving(true);
+      await adminAPI.upsertInventory({ ...form, quantity: parseFloat(form.quantity) });
+      toast.success('Saved!');
+      setForm({ item_name: '', quantity: '', unit: '', vendor_category: 'general_provisions' });
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error saving');
+    } finally {
+      setSaving(false);
     }
+  };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this item?')) return;
+    try {
+      await adminAPI.deleteInventory(id);
+      toast.success('Deleted');
+      load();
+    } catch (e) {
+      toast.error('Error deleting');
+    }
+  };
+
+  const startEdit = (item) => {
+    setEditId(item.id);
+    setEditForm({ item_name: item.item_name, quantity: item.quantity, unit: item.unit, vendor_category: item.vendor_category });
+  };
+
+  const saveEdit = async (item) => {
+    try {
+      await adminAPI.upsertInventory({ ...editForm, quantity: parseFloat(editForm.quantity) });
+      toast.success('Updated');
+      setEditId(null);
+      load();
+    } catch (e) {
+      toast.error('Error updating');
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Inventory</h1>
+        <p className="page-description">Manage stock levels. Items here auto-deduct from chef requests.</p>
+      </div>
+
+      <div className="card">
+        <h2 className="section-title" style={{ marginBottom: 'var(--spacing-lg)' }}>Add / Update Stock</h2>
+        <form onSubmit={handleAdd}>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Item Name</label>
+              <input className="form-input" placeholder="e.g. Prawns" value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Quantity</label>
+              <input className="form-input" type="number" min="0" step="0.01" placeholder="0" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Unit</label>
+              <input className="form-input" placeholder="kg / litre / pcs" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Vendor Category</label>
+              <select className="form-select" value={form.vendor_category} onChange={e => setForm({ ...form, vendor_category: e.target.value })}>
+                {VENDOR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <button className="btn btn-success" type="submit" disabled={saving} style={{ marginTop: 'var(--spacing-lg)' }}>
+            <Plus size={16} />{saving ? 'Saving…' : 'Add / Update Item'}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2 className="section-title" style={{ marginBottom: 'var(--spacing-lg)' }}>Current Stock ({items.length} items)</h2>
+        {loading ? <div className="empty-state">Loading…</div> : items.length === 0 ? (
+          <div className="empty-state">No inventory items yet.</div>
+        ) : (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Quantity</th>
+                  <th>Unit</th>
+                  <th>Category</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(item => (
+                  <tr key={item.id}>
+                    {editId === item.id ? (
+                      <>
+                        <td><input className="inline-edit" value={editForm.item_name} onChange={e => setEditForm({ ...editForm, item_name: e.target.value })} /></td>
+                        <td><input className="inline-edit" type="number" value={editForm.quantity} onChange={e => setEditForm({ ...editForm, quantity: e.target.value })} style={{ width: 80 }} /></td>
+                        <td><input className="inline-edit" value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} style={{ width: 70 }} /></td>
+                        <td>
+                          <select className="inline-edit" value={editForm.vendor_category} onChange={e => setEditForm({ ...editForm, vendor_category: e.target.value })}>
+                            {VENDOR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-sm btn-success" onClick={() => saveEdit(item)}><Check size={14} /></button>
+                          <button className="btn btn-sm btn-ghost" onClick={() => setEditId(null)}><X size={14} /></button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ fontWeight: 500 }}>{item.item_name}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td><span className={`cat-chip cat-${item.vendor_category}`}>{catLabel(item.vendor_category)}</span></td>
+                        <td style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-sm btn-ghost" onClick={() => startEdit(item)}><Edit2 size={14} /></button>
+                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(item.id)}><Trash2 size={14} /></button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── ORDERS TAB ────────────────────────────────────────────────────────────────
+
+const OrdersPage = () => {
+  const [items, setItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [compiling, setCompiling] = React.useState(false);
+  const [overrides, setOverrides] = React.useState({});
+  const [catOverrides, setCatOverrides] = React.useState({});
+  const [saving, setSaving] = React.useState({});
+
+  React.useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const data = await adminAPI.getPendingOrders();
+      setItems(data.items || []);
+    } catch (e) {
+      toast.error('Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveOverride = async (item) => {
+    const payload = {};
+    if (overrides[item.id] !== undefined) payload.final_quantity = parseInt(overrides[item.id]);
+    if (catOverrides[item.id] !== undefined) payload.vendor_category = catOverrides[item.id];
+    if (!Object.keys(payload).length) return;
+
+    setSaving(s => ({ ...s, [item.id]: true }));
+    try {
+      await adminAPI.editRequest(item.id, payload);
+      toast.success('Saved override');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error saving');
+    } finally {
+      setSaving(s => ({ ...s, [item.id]: false }));
+    }
+  };
+
+  const handleCompileDay = async (dateKey) => {
+    const label = dateKey === 'unscheduled' ? 'unscheduled items' : `items for ${fmtDateNice(dateKey)}`;
+    if (!window.confirm(`Compile ${label} and send to vendors? Inventory will be deducted now.`)) return;
     try {
       setCompiling(true);
-      console.log('Compiling approved orders...');
-      
-      // Group items by name and unit
-      const mergedItems = {};
-      approvedOrders.forEach(order => {
-        const key = `${order.item_name}_${order.unit}`;
-        if (mergedItems[key]) {
-          mergedItems[key].total_quantity += order.approved_quantity || order.quantity;
-        } else {
-          mergedItems[key] = {
-            item_name: order.item_name,
-            total_quantity: order.approved_quantity || order.quantity,
-            unit: order.unit
-          };
-        }
-      });
-
-      const compilePayload = {
-        items: Object.values(mergedItems)
-      };
-      
-      console.log('Compile payload:', compilePayload);
-      const response = await adminAPI.compileOrder(compilePayload);
-      console.log('Compile response:', response);
-      
-      toast.success(`Orders compiled! Total items: ${Object.values(mergedItems).length}`);
-      loadPendingOrders();
-    } catch (error) {
-      console.error('Error compiling orders:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to compile orders';
-      toast.error(`Error: ${errorMsg}`);
+      const requiredDate = dateKey === 'unscheduled' ? null : dateKey;
+      const result = await adminAPI.compileOrders(requiredDate);
+      toast.success(`Sent! ${result.compiled_orders?.length || 0} vendor order(s) created.`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Compile failed');
     } finally {
       setCompiling(false);
     }
   };
 
-  return (
-    <div className="page-section">
-      <div>
-        <h1 className="page-title">Manage Orders</h1>
-        <p className="page-description">Review pending orders, approve/reject, and compile to send to vendor.</p>
-      </div>
-
-      {error && (
-        <div style={{
-          padding: 'var(--spacing-lg)',
-          marginBottom: 'var(--spacing-lg)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--danger-50)',
-          border: '1px solid var(--danger-200)',
-          color: 'var(--danger-700)',
-          fontSize: 'var(--text-sm)'
-        }}>
-          <strong>Error:</strong> {error}
-          <button 
-            onClick={loadPendingOrders}
-            style={{
-              marginLeft: 'var(--spacing-md)',
-              background: 'var(--danger-600)',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-sm)'
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Pending Orders Section */}
-      <div className="card" style={{ marginBottom: 'var(--spacing-2xl)' }}>
-        <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 'var(--spacing-lg)', fontWeight: 600 }}>Pending Orders</h2>
-        {loading ? (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading orders...
-          </div>
-        ) : orders.length > 0 ? (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Stall</th>
-                  <th>Kitchen</th>
-                  <th>Item</th>
-                  <th>Quantity</th>
-                  <th>Unit</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id}>
-                    <td>{order.stall_name}</td>
-                    <td>{order.kitchen}</td>
-                    <td>{order.item_name}</td>
-                    <td>{order.quantity}</td>
-                    <td>{order.unit}</td>
-                    <td>
-                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn btn-small btn-success"
-                          onClick={async () => {
-                            try {
-                              console.log('Approving order:', order.id);
-                              console.log('Order data:', order);
-                              const response = await adminAPI.updateRequestStatus(order.id, { status: 'approved', approved_quantity: order.quantity });
-                              console.log('Approval response:', response);
-                              console.log('Order approved successfully');
-                              toast.success('Order approved!');
-                              // Add delay to ensure database is updated
-                              await new Promise(resolve => setTimeout(resolve, 500));
-                              loadPendingOrders();
-                            } catch (error) {
-                              console.error('Error approving:', error);
-                              console.error('Error response:', error.response?.data);
-                              toast.error(`Error: ${error.response?.data?.detail || error.message}`);
-                            }
-                          }}
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          className="btn btn-small btn-danger"
-                          onClick={async () => {
-                            try {
-                              console.log('Rejecting order:', order.id);
-                              await adminAPI.updateRequestStatus(order.id, { status: 'rejected' });
-                              console.log('Order rejected successfully');
-                              toast.success('Order rejected!');
-                              loadPendingOrders();
-                            } catch (error) {
-                              console.error('Error rejecting:', error);
-                              toast.error(`Error: ${error.response?.data?.detail || error.message}`);
-                            }
-                          }}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No pending orders to review.
-          </div>
-        )}
-      </div>
-
-      {/* Approved Orders Section */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-          <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, margin: 0 }}>Approved Orders ({approvedOrders.length})</h2>
-          {approvedOrders.length > 0 && (
-            <button 
-              className="btn btn-success"
-              onClick={handleCompileOrders}
-              disabled={compiling}
-              style={{ background: 'linear-gradient(135deg, var(--success-600) 0%, var(--success-700) 100%)' }}
-            >
-              {compiling ? 'Compiling...' : 'Compile & Send to Vendor'}
-            </button>
-          )}
-        </div>
-        {approvedOrders.length > 0 ? (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Stall</th>
-                  <th>Kitchen</th>
-                  <th>Item</th>
-                  <th>Approved Qty</th>
-                  <th>Unit</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {approvedOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td>{order.stall_name}</td>
-                    <td>{order.kitchen}</td>
-                    <td>{order.item_name}</td>
-                    <td>{order.approved_quantity || order.quantity}</td>
-                    <td>{order.unit}</td>
-                    <td>
-                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No approved orders. Approve pending orders first.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const VendorStatusPage = () => {
-  const [compiledOrders, setCompiledOrders] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-  const [selectedOrder, setSelectedOrder] = React.useState(null);
-
-  React.useEffect(() => {
-    loadVendorStatus();
-  }, []);
-
-  const loadVendorStatus = async () => {
+  const handleCompileAll = async () => {
+    if (!window.confirm('Compile ALL pending days at once? Inventory will be deducted in date order.')) return;
     try {
-      setLoading(true);
-      setError(null);
-      console.log('Loading compiled orders...');
-      const response = await adminAPI.getCompiledOrders();
-      console.log('Compiled orders response:', response);
-      console.log('Response length:', response ? response.length : 0);
-      if (response && response.length > 0) {
-        console.log('First order:', response[0]);
-        console.log('First order items:', response[0].items);
-        console.log('Items count:', response[0].items ? response[0].items.length : 0);
+      setCompiling(true);
+      const dateKeys = Object.keys(grouped).sort((a, b) => {
+        if (a === 'unscheduled') return 1;
+        if (b === 'unscheduled') return -1;
+        return a.localeCompare(b);
+      });
+      let totalVendorOrders = 0;
+      for (const dateKey of dateKeys) {
+        const requiredDate = dateKey === 'unscheduled' ? null : dateKey;
+        const result = await adminAPI.compileOrders(requiredDate);
+        totalVendorOrders += result.compiled_orders?.length || 0;
       }
-      setCompiledOrders(response || []);
-    } catch (error) {
-      console.error('Error loading compiled orders:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load vendor status';
-      setError(errorMsg);
+      toast.success(`Sequential compile done. ${totalVendorOrders} vendor order(s) created across ${dateKeys.length} day(s).`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Sequential compile failed');
     } finally {
-      setLoading(false);
+      setCompiling(false);
     }
   };
 
+  // Group by required_date, then by category
+  const grouped = {};
+  items.forEach(item => {
+    const dateKey = item.required_date || 'unscheduled';
+    if (!grouped[dateKey]) grouped[dateKey] = {};
+    const cat = catOverrides[item.id] || item.vendor_category;
+    if (!grouped[dateKey][cat]) grouped[dateKey][cat] = [];
+    grouped[dateKey][cat].push(item);
+  });
+
+  const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
+    if (a === 'unscheduled') return 1;
+    if (b === 'unscheduled') return -1;
+    return a.localeCompare(b);
+  });
+
   return (
     <div className="page-section">
-      <div>
-        <h1 className="page-title">Vendor Status</h1>
-        <p className="page-description">Track compiled orders sent to vendors and their delivery status.</p>
-      </div>
-
-      <div className="card">
-        {error && (
-          <div style={{
-            padding: 'var(--spacing-lg)',
-            marginBottom: 'var(--spacing-lg)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--danger-50)',
-            border: '1px solid var(--danger-200)',
-            color: 'var(--danger-700)',
-            fontSize: 'var(--text-sm)'
-          }}>
-            <strong>Error:</strong> {error}
-            <button 
-              onClick={loadVendorStatus}
-              style={{
-                marginLeft: 'var(--spacing-md)',
-                background: 'var(--danger-600)',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                fontSize: 'var(--text-sm)'
-              }}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {loading ? (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading compiled orders...
-          </div>
-        ) : compiledOrders.length > 0 ? (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Items Count</th>
-                  <th>Status</th>
-                  <th>Created Date</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compiledOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td><strong>{order.id.substring(0, 12)}...</strong></td>
-                    <td>{order.total_items}</td>
-                    <td>
-                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>{new Date(order.created_at).toLocaleDateString()}</td>
-                    <td>
-                      <button 
-                        className="btn btn-small" 
-                        style={{ fontSize: 'var(--text-xs)' }}
-                        onClick={() => {
-                          console.log('Viewing order details:', order.id);
-                          console.log('Order object:', order);
-                          console.log('Order items:', order.items);
-                          console.log('Items count:', order.items ? order.items.length : 0);
-                          if (order.items && order.items.length > 0) {
-                            console.log('First item details:', order.items[0]);
-                            console.log('First item unit_price:', order.items[0].unit_price);
-                            console.log('First item total_price:', order.items[0].total_price);
-                          }
-                          setSelectedOrder(order);
-                        }}
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No compiled orders sent to vendors yet. Compile and approve orders first.
-          </div>
-        )}
-      </div>
-
-      {selectedOrder && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-           left: 0,
-           right: 0,
-           bottom: 0,
-           background: 'var(--overlay-bg)',
-           display: 'flex',
-           alignItems: 'center',
-           justifyContent: 'center',
-           zIndex: 1000,
-           padding: 'var(--spacing-lg)'
-         }}
-        onClick={() => setSelectedOrder(null)}
-        >
-          <div 
-            ref={(element) => window.receiptElement = element}
-            data-receipt="true"
-            style={{
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '85vh',
-              overflow: 'auto',
-               background: 'white',
-               borderRadius: 'var(--radius-lg)',
-               boxShadow: '0 20px 60px var(--shadow-color-light)'
-             }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Receipt Header */}
-            <div style={{
-              background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-500) 100%)',
-              color: 'white',
-              padding: 'var(--spacing-xl)',
-              textAlign: 'center',
-              borderBottom: '3px solid var(--primary-700)'
-            }}>
-              <h1 style={{ margin: '0 0 var(--spacing-xs) 0', fontSize: '28px', fontWeight: 700 }}>ORDER RECEIPT</h1>
-              <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>FUMU - Food Management System</p>
-            </div>
-
-            {/* Receipt Content */}
-            <div style={{ padding: 'var(--spacing-xl)' }}>
-              {/* Order Info Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-xl)', paddingBottom: 'var(--spacing-lg)', borderBottom: '1px solid var(--border-color)' }}>
-                <div>
-                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Order ID</p>
-                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '14px', fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all' }}>{selectedOrder.id}</p>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Date</p>
-                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '14px', fontWeight: 600 }}>{new Date(selectedOrder.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Status</p>
-                  <span className={`status-badge status-${selectedOrder.status.toLowerCase()}`} style={{ marginTop: 'var(--spacing-xs)', display: 'inline-block' }}>
-                    {selectedOrder.status.toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total Items</p>
-                  <p style={{ margin: 'var(--spacing-xs) 0 0 0', fontSize: '20px', fontWeight: 700, color: 'var(--primary-600)' }}>{selectedOrder.total_items}</p>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-                <h3 style={{ margin: '0 0 var(--spacing-md) 0', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, color: 'var(--text-muted)' }}>Order Items</h3>
-                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ 
-                        background: 'var(--bg-secondary)', 
-                        borderBottom: '2px solid var(--border-color)',
-                        position: 'sticky',
-                        top: 0
-                      }}>
-                        <th style={{ textAlign: 'left', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Item</th>
-                        <th style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Qty</th>
-                        <th style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Delivered</th>
-                        <th style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Unit Price</th>
-                        <th style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 700, color: 'var(--text-muted)' }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedOrder.items && selectedOrder.items.length > 0 ? (
-                        selectedOrder.items.map((item, idx) => (
-                          <tr key={idx} style={{ 
-                            borderBottom: '1px solid var(--border-color)',
-                            background: idx % 2 === 0 ? 'var(--bg-secondary)' : 'transparent'
-                          }}>
-                            <td style={{ padding: 'var(--spacing-md)', fontWeight: 500 }}>{item.item_name}</td>
-                            <td style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 500 }}>{item.total_quantity}</td>
-                            <td style={{ 
-                              textAlign: 'center', 
-                              padding: 'var(--spacing-md)', 
-                              color: item.delivered_quantity > 0 ? 'var(--success-600)' : 'var(--text-muted)',
-                              fontWeight: 600
-                            }}>
-                              {item.delivered_quantity || 0}
-                            </td>
-                            <td style={{ textAlign: 'right', padding: 'var(--spacing-md)', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 500 }}>
-                              {item.unit_price ? `₹${item.unit_price.toFixed(2)}` : 'N/A'}
-                            </td>
-                            <td style={{ textAlign: 'right', padding: 'var(--spacing-md)', fontWeight: 600, color: 'var(--primary-600)' }}>
-                              {item.total_price ? `₹${item.total_price.toFixed(2)}` : 'N/A'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="5" style={{ padding: 'var(--spacing-lg)', textAlign: 'center', color: 'var(--text-muted)' }}>No items in this order</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div style={{ 
-                background: 'var(--bg-secondary)', 
-                padding: 'var(--spacing-lg)',
-                borderRadius: 'var(--radius-md)',
-                marginBottom: 'var(--spacing-xl)',
-                borderLeft: '4px solid var(--primary-500)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)' }}>
-                  <span style={{ fontWeight: 600 }}>Total Price:</span>
-                  <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--primary-600)' }}>
-                    {selectedOrder.total_price ? `₹${selectedOrder.total_price.toFixed(2)}` : 'N/A'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontWeight: 600 }}>Total Items:</span>
-                  <span style={{ fontWeight: 600 }}>{selectedOrder.total_items}</span>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div style={{ 
-                textAlign: 'center', 
-                padding: 'var(--spacing-lg)',
-                borderTop: '1px dashed var(--border-color)',
-                marginBottom: 'var(--spacing-lg)',
-                color: 'var(--text-muted)',
-                fontSize: '12px'
-              }}>
-                <p style={{ margin: '0 0 var(--spacing-xs) 0' }}>Thank you for using FUMU</p>
-                <p style={{ margin: 0 }}>Generated on {new Date().toLocaleString('en-IN')}</p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ 
-              display: 'flex',
-              gap: 'var(--spacing-md)',
-              padding: 'var(--spacing-lg)',
-              borderTop: '1px solid var(--border-color)',
-              background: 'var(--bg-secondary)'
-            }}>
-              <button 
-                onClick={() => {
-                  console.log('Generating PDF...');
-                  try {
-                    // Create isolated print window for PDF
-                    const printWindow = window.open('', '', 'height=800,width=900');
-                    
-                    const receiptHTML = `<!DOCTYPE html>
-                      <html>
-                      <head>
-                        <style>
-                          * { margin: 0; padding: 0; box-sizing: border-box; }
-                          body { font-family: Arial, sans-serif; background: white; color: #000; padding: 20px; }
-                          .header { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: white; padding: 30px; text-align: center; margin-bottom: 20px; }
-                          .header h1 { font-size: 24px; margin-bottom: 5px; }
-                          .info-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
-                          .info-table td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
-                          .info-table td:first-child { font-weight: 600; width: 40%; }
-                          .items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 20px 0; }
-                          .items-table th { background: #f3f4f6; padding: 10px; text-align: left; font-weight: 700; border: 1px solid #d1d5db; }
-                          .items-table td { padding: 10px; border: 1px solid #e5e7eb; }
-                          .items-table tr:nth-child(even) { background: #f9fafb; }
-                          .summary { background: #f3f4f6; padding: 15px; border-left: 4px solid #4f46e5; }
-                          .summary div { display: flex; justify-content: space-between; margin: 5px 0; }
-                        </style>
-                      </head>
-                      <body>
-                        <div class="header">
-                          <h1>ORDER RECEIPT</h1>
-                          <p>FUMU - Food Management System</p>
-                        </div>
-                        <table class="info-table">
-                          <tr><td>Order ID:</td><td>${selectedOrder.id}</td></tr>
-                          <tr><td>Date:</td><td>${new Date(selectedOrder.created_at).toLocaleDateString('en-IN')}</td></tr>
-                          <tr><td>Status:</td><td>${selectedOrder.status.toUpperCase()}</td></tr>
-                          <tr><td>Total Items:</td><td>${selectedOrder.total_items}</td></tr>
-                        </table>
-                        <h3 style="margin: 20px 0 10px; font-size: 12px; color: #6b7280;">ORDER ITEMS</h3>
-                        <table class="items-table">
-                          <tr><th>Item</th><th>Qty</th><th>Delivered</th><th>Unit Price</th><th>Total</th></tr>
-                          ${selectedOrder.items && selectedOrder.items.length > 0 ? selectedOrder.items.map(item => `
-                            <tr>
-                              <td>${item.item_name}</td>
-                              <td style="text-align: center;">${item.total_quantity}</td>
-                              <td style="text-align: center;">${item.delivered_quantity || 0}</td>
-                              <td style="text-align: right;">₹${item.unit_price ? item.unit_price.toFixed(2) : 'N/A'}</td>
-                              <td style="text-align: right; font-weight: 600;">₹${item.total_price ? item.total_price.toFixed(2) : 'N/A'}</td>
-                            </tr>
-                          `).join('') : '<tr><td colspan="5">No items</td></tr>'}
-                        </table>
-                        <div class="summary">
-                          <div><span>Total Price:</span><span style="font-weight: 700; color: #4f46e5;">₹${selectedOrder.total_price ? selectedOrder.total_price.toFixed(2) : 'N/A'}</span></div>
-                        </div>
-                        <p style="text-align: center; margin-top: 20px; font-size: 11px; color: #6b7280;">Generated: ${new Date().toLocaleString('en-IN')}</p>
-                      </body></html>`;
-                    
-                    printWindow.document.write(receiptHTML);
-                    printWindow.document.close();
-                    
-                    setTimeout(() => {
-                      printWindow.print();
-                      console.log('Print dialog opened - user can save as PDF');
-                    }, 300);
-                  } catch (error) {
-                    console.error('Error:', error);
-                    alert(`Error: ${error.message}`);
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: 'var(--spacing-md)',
-                  background: 'var(--success-600)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 600,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'var(--success-700)'}
-                onMouseLeave={(e) => e.target.style.background = 'var(--success-600)'}
-              >
-                📥 Download PDF
-              </button>
-              <button 
-                onClick={() => {
-                  console.log('Opening print dialog...');
-                  try {
-                    // Add a small delay to ensure the DOM is ready
-                    setTimeout(() => {
-                      window.print();
-                    }, 100);
-                  } catch (error) {
-                    console.error('Error printing:', error);
-                    alert(`Error: ${error.message}`);
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: 'var(--spacing-md)',
-                  background: 'var(--info-600)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 600,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'var(--info-700)'}
-                onMouseLeave={(e) => e.target.style.background = 'var(--info-600)'}
-              >
-                🖨️ Print
-              </button>
-              <button 
-                onClick={() => setSelectedOrder(null)}
-                style={{
-                  flex: 1,
-                  padding: 'var(--spacing-md)',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 600,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
-                onMouseLeave={(e) => e.target.style.background = 'var(--bg-primary)'}
-              >
-                Close
-              </button>
-            </div>
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+        <div>
+          <h1 className="page-title">Pending Orders by Day</h1>
+          <p className="page-description">
+            Approve one day at a time so inventory deductions stay accurate, or compile all days sequentially.
+          </p>
         </div>
+        {items.length > 0 && (
+          <button className="btn btn-success" onClick={handleCompileAll} disabled={compiling}>
+            {compiling ? 'Compiling…' : `Approve All ${sortedDateKeys.length} Day(s) Sequentially`}
+          </button>
+        )}
+      </div>
+
+      {loading ? <div className="card"><div className="empty-state">Loading…</div></div> : items.length === 0 ? (
+        <div className="card"><div className="empty-state">No HOD-submitted orders pending.</div></div>
+      ) : (
+        sortedDateKeys.map(dateKey => {
+          const cats = grouped[dateKey];
+          const totalItemsForDay = Object.values(cats).reduce((s, arr) => s + arr.length, 0);
+          return (
+            <div className="card" key={dateKey}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                marginBottom: 'var(--spacing-lg)', flexWrap: 'wrap', gap: 'var(--spacing-md)'
+              }}>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  📅 {dateKey === 'unscheduled' ? 'Unscheduled' : fmtDateNice(dateKey)}
+                  <span style={{ marginLeft: 12, fontSize: 'var(--text-sm)', color: 'var(--text-muted)', fontWeight: 400 }}>
+                    {totalItemsForDay} item(s)
+                  </span>
+                </h2>
+                <button className="btn btn-primary" onClick={() => handleCompileDay(dateKey)} disabled={compiling}>
+                  {compiling ? 'Compiling…' : 'Approve This Day'}
+                </button>
+              </div>
+
+              {Object.entries(cats).map(([cat, catItems]) => (
+                <div key={cat} style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <div style={{ marginBottom: 'var(--spacing-sm)' }}>
+                    <span className={`cat-chip cat-${cat}`} style={{ marginRight: 8 }}>{catLabel(cat)}</span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      {catItems.length} item{catItems.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="table-container">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Stall</th>
+                          <th>Kitchen</th>
+                          <th>Item</th>
+                          <th>Chef Qty</th>
+                          <th>HOD Qty</th>
+                          <th>In Stock</th>
+                          <th>Net Required</th>
+                          <th>Final Qty</th>
+                          <th>Category</th>
+                          <th>Unit</th>
+                          <th>Save</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catItems.map(item => {
+                          const finalQty = overrides[item.id] !== undefined ? overrides[item.id] : (item.final_quantity ?? item.net_required);
+                          const netReq = item.net_required;
+                          return (
+                            <tr key={item.id}>
+                              <td>{item.stall_name}</td>
+                              <td>{item.kitchen}</td>
+                              <td style={{ fontWeight: 500 }}>{item.item_name}</td>
+                              <td style={{ color: 'var(--text-muted)' }}>{item.chef_quantity}</td>
+                              <td>{item.hod_quantity}</td>
+                              <td style={{ color: item.in_stock > 0 ? 'var(--success-600)' : 'var(--text-muted)' }}>{item.in_stock}</td>
+                              <td>
+                                <span className={netReq === 0 ? 'net-zero' : 'net-positive'}>
+                                  {netReq === 0 ? '✓ Covered' : netReq}
+                                </span>
+                              </td>
+                              <td>
+                                <input
+                                  className="inline-edit"
+                                  type="number"
+                                  min="0"
+                                  style={{ width: 70 }}
+                                  value={finalQty ?? ''}
+                                  onChange={e => setOverrides(o => ({ ...o, [item.id]: e.target.value }))}
+                                />
+                              </td>
+                              <td>
+                                <select
+                                  className="inline-edit"
+                                  value={catOverrides[item.id] || item.vendor_category}
+                                  onChange={e => setCatOverrides(o => ({ ...o, [item.id]: e.target.value }))}
+                                >
+                                  {VENDOR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                </select>
+                              </td>
+                              <td>{item.unit}</td>
+                              <td>
+                                <button
+                                  className="btn btn-sm btn-ghost"
+                                  onClick={() => saveOverride(item)}
+                                  disabled={saving[item.id]}
+                                >
+                                  {saving[item.id] ? '…' : <Check size={14} />}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })
       )}
     </div>
   );
 };
+
+const fmtDateNice = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+// ── COMPILED ORDERS TAB ───────────────────────────────────────────────────────
 
 const HistoryPage = () => {
-  const [history, setHistory] = React.useState([]);
+  const [orders, setOrders] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [expanded, setExpanded] = React.useState({});
+  const [statusFilter, setStatusFilter] = React.useState('all');
 
-  React.useEffect(() => {
-    loadOrderHistory();
-  }, []);
+  React.useEffect(() => { load(); }, []);
 
-  const loadOrderHistory = async () => {
+  const load = async () => {
     try {
       setLoading(true);
-      setError(null);
-      console.log('Loading order history...');
-      const response = await adminAPI.getCompiledOrders();
-      console.log('Order history response:', response);
-      setHistory(response || []);
-    } catch (error) {
-      console.error('Error loading order history:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load history';
-      setError(errorMsg);
+      const data = await adminAPI.getCompiledOrders();
+      setOrders(data);
+    } catch (e) {
+      toast.error('Failed to load vendor orders');
     } finally {
       setLoading(false);
     }
   };
 
+  const toggle = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }));
+
+  const filtered = orders.filter(o => statusFilter === 'all' ? true : o.status === statusFilter);
+
+  // Group by required_date (YYYY-MM-DD) then by vendor_category
+  const grouped = React.useMemo(() => {
+    const byDate = {};
+    for (const o of filtered) {
+      const dateKey = o.required_date || 'no-date';
+      if (!byDate[dateKey]) byDate[dateKey] = {};
+      const cat = o.vendor_category || 'uncategorized';
+      if (!byDate[dateKey][cat]) byDate[dateKey][cat] = [];
+      byDate[dateKey][cat].push(o);
+    }
+    // Sort dates descending (most recent first), but 'no-date' last
+    const dateKeys = Object.keys(byDate).sort((a, b) => {
+      if (a === 'no-date') return 1;
+      if (b === 'no-date') return -1;
+      return b.localeCompare(a);
+    });
+    return { byDate, dateKeys };
+  }, [filtered]);
+
+  const dateLabel = (key) => {
+    if (key === 'no-date') return 'Undated';
+    const d = new Date(key);
+    return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  // Compare against today (start of day, local)
+  const dayBucket = (key) => {
+    if (key === 'no-date') return { label: '', color: 'var(--text-muted)' };
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const d = new Date(key); d.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return { label: 'Today', color: 'var(--primary-700)' };
+    if (diff === 1) return { label: 'Tomorrow', color: 'var(--accent-700, var(--primary-600))' };
+    if (diff === -1) return { label: 'Yesterday', color: 'var(--text-muted)' };
+    if (diff > 0) return { label: `In ${diff} days`, color: 'var(--primary-600)' };
+    return { label: `${-diff} days ago`, color: 'var(--text-muted)' };
+  };
+
+  const STATUS_TABS = [
+    { id: 'all', label: 'All' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'delivered', label: 'Delivered' },
+    { id: 'cancelled', label: 'Cancelled' },
+  ];
+
   return (
     <div className="page-section">
       <div>
-        <h1 className="page-title">Order History</h1>
-        <p className="page-description">View all historical orders and their status.</p>
+        <h1 className="page-title">Vendor Orders</h1>
+        <p className="page-description">Orders sent to vendors, grouped by delivery date and category. Click any order to see its items.</p>
       </div>
 
-      <div className="card">
-        {error && (
-          <div style={{
-            padding: 'var(--spacing-lg)',
-            marginBottom: 'var(--spacing-lg)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--danger-50)',
-            border: '1px solid var(--danger-200)',
-            color: 'var(--danger-700)',
-            fontSize: 'var(--text-sm)'
-          }}>
-            <strong>Error:</strong> {error}
-            <button 
-              onClick={loadOrderHistory}
-              style={{
-                marginLeft: 'var(--spacing-md)',
-                background: 'var(--danger-600)',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                fontSize: 'var(--text-sm)'
-              }}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {loading ? (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading history...
-          </div>
-        ) : history.length > 0 ? (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Items</th>
-                  <th>Status</th>
-                  <th>Total Price</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((order) => (
-                  <tr key={order.id}>
-                    <td><strong>{order.id.substring(0, 8)}...</strong></td>
-                    <td>{order.total_items}</td>
-                    <td>
-                      <span className={`status-badge status-${order.status.toLowerCase()}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>${order.total_price || 'N/A'}</td>
-                    <td>{new Date(order.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No order history found.
-          </div>
-        )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {STATUS_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setStatusFilter(t.id)}
+            className={statusFilter === t.id ? 'btn' : 'btn btn-ghost'}
+            style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {loading ? (
+        <div className="card"><div className="empty-state">Loading…</div></div>
+      ) : grouped.dateKeys.length === 0 ? (
+        <div className="card"><div className="empty-state">No vendor orders yet.</div></div>
+      ) : (
+        grouped.dateKeys.map(dateKey => {
+          const bucket = dayBucket(dateKey);
+          const categories = grouped.byDate[dateKey];
+          return (
+            <div key={dateKey} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', borderBottom: '1px solid var(--border-light)', paddingBottom: 'var(--spacing-md)' }}>
+                <h2 style={{ margin: 0, fontSize: 'var(--text-xl)', fontWeight: 700 }}>
+                  {dateLabel(dateKey)}
+                </h2>
+                {bucket.label && (
+                  <span style={{
+                    padding: '4px 12px', borderRadius: 999, background: 'var(--bg-secondary)',
+                    color: bucket.color, fontSize: 'var(--text-xs)', fontWeight: 700
+                  }}>{bucket.label}</span>
+                )}
+              </div>
+
+              {Object.entries(categories).map(([cat, ordersInCat]) => (
+                <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className={`cat-chip cat-${cat}`}>{catLabel(cat)}</span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      {ordersInCat.length} order{ordersInCat.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+
+                  {ordersInCat.map(order => (
+                    <div key={order.id} style={{
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 'var(--radius-lg)',
+                      overflow: 'hidden'
+                    }}>
+                      <div
+                        onClick={() => toggle(order.id)}
+                        className="order-row-clickable"
+                        style={{
+                          cursor: 'pointer', padding: 'var(--spacing-md) var(--spacing-lg)',
+                          display: 'grid',
+                          gridTemplateColumns: '24px 1fr auto auto auto auto',
+                          alignItems: 'center', gap: 'var(--spacing-md)',
+                          background: 'var(--bg-secondary)',
+                          transition: 'background var(--transition-fast)'
+                        }}
+                      >
+                        {expanded[order.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 600 }}>
+                            {order.vendor_email || 'Unknown vendor'}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            #{order.id.substring(0, 8).toUpperCase()}
+                            {order.invoice_number && ` · ${order.invoice_number}`}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 600,
+                          color: 'var(--primary-700)',
+                          background: 'var(--primary-50, var(--bg-primary))',
+                          padding: '4px 10px',
+                          borderRadius: 999
+                        }}>
+                          {expanded[order.id] ? 'Hide' : 'View'} {order.total_items} item{order.total_items === 1 ? '' : 's'}
+                        </span>
+                        <span style={{
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 700,
+                          color: order.total_price ? 'var(--success-700)' : 'var(--warning-700)'
+                        }}>
+                          {order.total_price
+                            ? `₹${order.total_price.toFixed(2)}`
+                            : 'Awaiting bill'}
+                        </span>
+                        <span className={`status-badge status-${order.status}`}>{order.status}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {order.delivered_at
+                            ? `Delivered ${new Date(order.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                            : `Sent ${new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                        </span>
+                      </div>
+
+                      {expanded[order.id] && (
+                        <div style={{ padding: 'var(--spacing-md) var(--spacing-lg)', background: 'var(--bg-primary)' }}>
+                          <table className="table" style={{ background: 'transparent' }}>
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Ordered</th>
+                                <th>Delivered</th>
+                                <th>Unit Price</th>
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {order.items.map(item => (
+                                <tr key={item.order_id}>
+                                  <td>{item.item_name}</td>
+                                  <td>{item.total_quantity} {item.unit || ''}</td>
+                                  <td style={{ color: item.delivered_quantity > 0 ? 'var(--success-700)' : 'var(--text-muted)' }}>
+                                    {item.delivered_quantity != null ? `${item.delivered_quantity} ${item.unit || ''}` : 'Pending'}
+                                  </td>
+                                  <td>{item.unit_price ? `₹${item.unit_price.toFixed(2)}` : 'Pending'}</td>
+                                  <td style={{ fontWeight: 600 }}>
+                                    {item.total_price ? `₹${item.total_price.toFixed(2)}` : 'Pending'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 };
+
+// ── CREATE ACCOUNT TAB ────────────────────────────────────────────────────────
 
 const CreateAccountPage = () => {
   const [formData, setFormData] = React.useState({
-    email: '',
-    password: '',
-    role: 'stall',
-    kitchen: '',
-    stall_name: ''
+    email: '', password: '', role: 'stall',
+    kitchen: '', stall_name: '', vendor_category: ''
   });
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState({ type: '', text: '' });
@@ -1334,45 +828,26 @@ const CreateAccountPage = () => {
     try {
       if (!formData.email || !formData.password) {
         setMessage({ type: 'error', text: 'Email and password are required' });
-        setLoading(false);
         return;
       }
-
       if (formData.role === 'stall' && !formData.kitchen) {
         setMessage({ type: 'error', text: 'Please select a kitchen for Chef role' });
-        setLoading(false);
+        return;
+      }
+      if (formData.role === 'vendor' && !formData.vendor_category) {
+        setMessage({ type: 'error', text: 'Please select a vendor category' });
         return;
       }
 
-      const userData = {
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-      };
-
-      if (formData.role === 'stall') {
-        userData.kitchen = formData.kitchen;
-        userData.stall_name = formData.stall_name || formData.kitchen;
-      }
+      const userData = { email: formData.email, password: formData.password, role: formData.role };
+      if (formData.role === 'stall') { userData.kitchen = formData.kitchen; userData.stall_name = formData.stall_name || formData.kitchen; }
+      if (formData.role === 'vendor') { userData.vendor_category = formData.vendor_category; }
 
       const response = await authAPI.registerUser(userData);
-
-      setMessage({ 
-        type: 'success', 
-        text: `Account created successfully for ${response.email}` 
-      });
-
-      setFormData({
-        email: '',
-        password: '',
-        role: 'stall',
-        kitchen: '',
-        stall_name: ''
-      });
+      setMessage({ type: 'success', text: `Account created: ${response.email}` });
+      setFormData({ email: '', password: '', role: 'stall', kitchen: '', stall_name: '', vendor_category: '' });
     } catch (error) {
-      console.error('Account creation error:', error);
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to create account';
-      setMessage({ type: 'error', text: errorMessage });
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to create account' });
     } finally {
       setLoading(false);
     }
@@ -1381,107 +856,72 @@ const CreateAccountPage = () => {
   return (
     <div className="page-section">
       <div>
-        <h1 className="page-title">Create User Account</h1>
-        <p className="page-description">Create new user accounts for staff, admins, and vendors.</p>
+        <h1 className="page-title">Create Account</h1>
+        <p className="page-description">Create accounts for chefs, HODs, vendors, and admins.</p>
       </div>
 
-      <div className="card" style={{ maxWidth: '600px' }}>
+      <div className="card" style={{ maxWidth: 600 }}>
         {message.text && (
           <div style={{
-            padding: 'var(--spacing-md)',
-            marginBottom: 'var(--spacing-lg)',
+            padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)',
             borderRadius: 'var(--radius-md)',
             background: message.type === 'success' ? 'var(--success-50)' : 'var(--danger-50)',
             border: `1px solid ${message.type === 'success' ? 'var(--success-200)' : 'var(--danger-200)'}`,
             color: message.type === 'success' ? 'var(--success-700)' : 'var(--danger-700)',
             fontSize: 'var(--text-sm)'
-          }}>
-            {message.text}
-          </div>
+          }}>{message.text}</div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label htmlFor="email" className="form-label">Email Address</label>
-            <input
-              id="email"
-              type="email"
-              className="form-input"
-              placeholder="user@example.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-              disabled={loading}
-            />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" placeholder="user@example.com" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required disabled={loading} />
           </div>
-
-          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label htmlFor="password" className="form-label">Password</label>
-            <input
-              id="password"
-              type="password"
-              className="form-input"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-              disabled={loading}
-            />
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input className="form-input" type="password" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required disabled={loading} />
           </div>
-
-          <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label htmlFor="role" className="form-label">Role</label>
-            <select
-              id="role"
-              className="form-select"
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              disabled={loading}
-            >
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <select className="form-select" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={loading}>
               <option value="stall">Chef (Stall)</option>
-              <option value="admin">Administrator</option>
+              <option value="hod">HOD (Head of Department)</option>
               <option value="vendor">Vendor</option>
+              <option value="admin">Administrator</option>
             </select>
           </div>
 
           {formData.role === 'stall' && (
             <>
-              <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <label htmlFor="kitchen" className="form-label">Kitchen Assignment</label>
-                <select
-                  id="kitchen"
-                  className="form-select"
-                  value={formData.kitchen}
-                  onChange={(e) => setFormData({ ...formData, kitchen: e.target.value })}
-                  required
-                  disabled={loading}
-                >
+              <div className="form-group">
+                <label className="form-label">Kitchen</label>
+                <select className="form-select" value={formData.kitchen} onChange={e => setFormData({ ...formData, kitchen: e.target.value })} required disabled={loading}>
                   <option value="">Select Kitchen</option>
-                  <option value="BTK">BTK Kitchen</option>
-                  <option value="ATK">ATK Kitchen</option>
-                  <option value="QTK">QTK Kitchen</option>
-                  <option value="CRAFT">CRAFT Kitchen</option>
+                  <option value="BTK">BTK</option>
+                  <option value="ATK">ATK</option>
+                  <option value="QTK">QTK</option>
+                  <option value="CRAFT">CRAFT</option>
                 </select>
               </div>
-
-              <div className="form-group" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <label htmlFor="stall_name" className="form-label">Stall Name (Optional)</label>
-                <input
-                  id="stall_name"
-                  type="text"
-                  className="form-input"
-                  placeholder="Stall name (defaults to kitchen)"
-                  value={formData.stall_name}
-                  onChange={(e) => setFormData({ ...formData, stall_name: e.target.value })}
-                  disabled={loading}
-                />
+              <div className="form-group">
+                <label className="form-label">Stall Name (optional)</label>
+                <input className="form-input" placeholder="Defaults to kitchen" value={formData.stall_name} onChange={e => setFormData({ ...formData, stall_name: e.target.value })} disabled={loading} />
               </div>
             </>
           )}
 
-          <button type="submit" className="btn" style={{ width: '100%' }} disabled={loading}>
-            <Plus size={18} />
-            {loading ? 'Creating Account...' : 'Create Account'}
+          {formData.role === 'vendor' && (
+            <div className="form-group">
+              <label className="form-label">Vendor Category</label>
+              <select className="form-select" value={formData.vendor_category} onChange={e => setFormData({ ...formData, vendor_category: e.target.value })} required disabled={loading}>
+                <option value="">Select Category</option>
+                {VENDOR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          <button type="submit" className="btn" disabled={loading}>
+            <Plus size={18} />{loading ? 'Creating…' : 'Create Account'}
           </button>
         </form>
       </div>
@@ -1489,22 +929,237 @@ const CreateAccountPage = () => {
   );
 };
 
+// ── BILLS TAB ─────────────────────────────────────────────────────────────────
+
+const BillsPage = () => {
+  const [view, setView] = React.useState('daily');
+  const [vendorCat, setVendorCat] = React.useState('');
+  const [startDate, setStartDate] = React.useState('');
+  const [endDate, setEndDate] = React.useState('');
+  const [buckets, setBuckets] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [expanded, setExpanded] = React.useState({});
+
+  const load = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await adminAPI.getBills({
+        view,
+        vendor_category: vendorCat || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      });
+      setBuckets(data.buckets || []);
+    } catch (e) {
+      toast.error('Failed to load bills');
+    } finally {
+      setLoading(false);
+    }
+  }, [view, vendorCat, startDate, endDate]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const toggle = (key) => setExpanded(e => ({ ...e, [key]: !e[key] }));
+
+  const VIEW_TABS = [
+    { id: 'daily', label: 'Daily' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'monthly', label: 'Monthly' },
+  ];
+
+  const grandTotal = buckets.reduce((s, b) => s + (b.total_price || 0), 0);
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Bills</h1>
+        <p className="page-description">
+          Vendor bills aggregated by day, week, or month, grouped per category.
+        </p>
+      </div>
+
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {VIEW_TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setView(t.id)}
+                className={view === t.id ? 'btn' : 'btn btn-ghost'}
+                style={{ padding: '6px 16px', fontSize: 'var(--text-sm)' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="form-group" style={{ flex: '0 0 200px' }}>
+            <label className="form-label">Vendor Category</label>
+            <select
+              className="form-select"
+              value={vendorCat}
+              onChange={(e) => setVendorCat(e.target.value)}
+            >
+              <option value="">All categories</option>
+              {VENDOR_CATEGORIES.map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ flex: '0 0 160px' }}>
+            <label className="form-label">From</label>
+            <input type="date" className="form-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ flex: '0 0 160px' }}>
+            <label className="form-label">To</label>
+            <input type="date" className="form-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+
+          {(startDate || endDate || vendorCat) && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => { setStartDate(''); setEndDate(''); setVendorCat(''); }}
+              style={{ padding: '8px 14px', fontSize: 'var(--text-sm)' }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {!loading && buckets.length > 0 && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--success-50)', borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--success-200, var(--border-light))'
+          }}>
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+              {buckets.length} bill{buckets.length === 1 ? '' : 's'} in view
+            </span>
+            <span style={{ fontWeight: 700, color: 'var(--success-700)' }}>
+              Total: ₹{grandTotal.toFixed(2)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="empty-state">Loading…</div></div>
+      ) : buckets.length === 0 ? (
+        <div className="card"><div className="empty-state">No bills found for the selected filters.</div></div>
+      ) : (
+        <div className="card">
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Invoice Ref</th>
+                  <th>Period</th>
+                  <th>Category</th>
+                  <th>Vendor</th>
+                  <th>Orders</th>
+                  <th>Items</th>
+                  <th style={{ textAlign: 'right' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buckets.map(b => {
+                  const key = `${b.bucket_key}-${b.vendor_category}`;
+                  return (
+                    <React.Fragment key={key}>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => toggle(key)}>
+                        <td>{expanded[key] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary-700)' }}>
+                          {b.invoice_ref}
+                        </td>
+                        <td>{b.bucket_label}</td>
+                        <td><span className={`cat-chip cat-${b.vendor_category}`}>{catLabel(b.vendor_category)}</span></td>
+                        <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                          {b.vendor_email || '—'}
+                        </td>
+                        <td>{b.total_orders}</td>
+                        <td>{b.total_items}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success-700)' }}>
+                          ₹{b.total_price.toFixed(2)}
+                        </td>
+                      </tr>
+                      {expanded[key] && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '0 var(--spacing-2xl) var(--spacing-lg)' }}>
+                            <div style={{
+                              marginTop: 8, background: 'var(--bg-secondary)',
+                              borderRadius: 8, padding: 'var(--spacing-md)'
+                            }}>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--spacing-sm)', fontWeight: 600, textTransform: 'uppercase' }}>
+                                {b.constituents.length} constituent invoice{b.constituents.length === 1 ? '' : 's'}
+                              </div>
+                              <table className="table" style={{ background: 'transparent' }}>
+                                <thead>
+                                  <tr>
+                                    <th>Invoice #</th>
+                                    <th>Delivered</th>
+                                    <th>Delivery Date</th>
+                                    <th>Items</th>
+                                    <th style={{ textAlign: 'right' }}>Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {b.constituents.map(c => (
+                                    <tr key={c.compiled_order_id}>
+                                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                        {c.invoice_number || '—'}
+                                      </td>
+                                      <td>
+                                        {c.delivered_at
+                                          ? new Date(c.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                          : '—'}
+                                      </td>
+                                      <td>
+                                        {c.required_date
+                                          ? new Date(c.required_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                                          : '—'}
+                                      </td>
+                                      <td>{c.total_items}</td>
+                                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                                        ₹{c.total_price.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ── ROOT ──────────────────────────────────────────────────────────────────────
+
 export default function AdminDashboard() {
-  const [activePage, setActivePage] = React.useState('view-orders');
+  const [activePage, setActivePage] = React.useState('orders');
   const { logout } = useAuth();
 
   const renderPage = () => {
     switch (activePage) {
-      case 'view-orders':
-        return <ViewOrdersPage />;
-      case 'vendor-status':
-        return <VendorStatusPage />;
-      case 'history':
-        return <HistoryPage />;
-      case 'create-account':
-        return <CreateAccountPage />;
-      default:
-        return <ViewOrdersPage />;
+      case 'inventory': return <InventoryPage />;
+      case 'orders': return <OrdersPage />;
+      case 'history': return <HistoryPage />;
+      case 'bills': return <BillsPage />;
+      case 'create-account': return <CreateAccountPage />;
+      default: return <OrdersPage />;
     }
   };
 
@@ -1515,9 +1170,7 @@ export default function AdminDashboard() {
         <Sidebar activePage={activePage} setActivePage={setActivePage} />
         <main className="main-content">
           <Header onLogout={logout} />
-          <div className="page-content">
-            {renderPage()}
-          </div>
+          <div className="page-content">{renderPage()}</div>
         </main>
       </div>
     </>
