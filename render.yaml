@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: fumu-backend
+    runtime: python
+    rootDir: .
+    buildCommand: pip install poetry && poetry config virtualenvs.create false && poetry install --only main
+    startCommand: python -m ihm_backend
+    plan: free
+    envVars:
+      - key: IHM_BACKEND_DB_URL_STRING
+        sync: false          # set manually in Render dashboard
+      - key: IHM_BACKEND_USERS_SECRET
+        sync: false          # any long random string
+      - key: IHM_BACKEND_ENVIRONMENT
+        value: production
+      - key: IHM_BACKEND_RELOAD
+        value: "false"
+      - key: IHM_BACKEND_WORKERS_COUNT
+        value: "1"
+      - key: IHM_BACKEND_MAIL_USERNAME
+        sync: false
+      - key: IHM_BACKEND_MAIL_PASSWORD
+        sync: false
+      - key: IHM_BACKEND_MAIL_FROM
+        sync: false
+      - key: IHM_BACKEND_ADMIN_EMAIL
+        sync: false
