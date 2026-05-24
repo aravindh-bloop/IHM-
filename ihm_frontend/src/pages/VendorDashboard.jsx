@@ -808,7 +808,8 @@ const SupplyHistoryPage = () => {
               </thead>
               <tbody>
                 {history.map((order) => (
-                  <tr key={order.order_id}>
+                  <React.Fragment key={order.order_id}>
+                  <tr>
                     <td>
                       <strong style={{ color: 'var(--primary-700)', fontFamily: 'var(--font-mono, monospace)' }}>
                         {order.invoice_number || '—'}
@@ -845,7 +846,7 @@ const SupplyHistoryPage = () => {
                     </td>
                   </tr>
                   {expandedOrder === order.order_id && (
-                    <tr key={`${order.order_id}-detail`}>
+                    <tr>
                       <td colSpan={7} style={{ padding: '0 var(--spacing-md) var(--spacing-md)', background: 'var(--bg-secondary)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
                           <thead>
@@ -872,6 +873,7 @@ const SupplyHistoryPage = () => {
                       </td>
                     </tr>
                   )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
