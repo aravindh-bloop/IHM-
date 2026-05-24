@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python --version)",
+      "Bash(py --version)",
+      "Bash(poetry --version)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "PowerShell(python --version)",
+      "PowerShell(poetry --version)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(pnpm --version)",
+      "PowerShell(Get-Command python3 -ErrorAction SilentlyContinue)",
+      "PowerShell(py --version)",
+      "PowerShell(Get-Command poetry -ErrorAction SilentlyContinue)",
+      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'python|poetry|conda|pyenv' -and $_ -ne '' })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\aravi\\\\AppData\\\\Local\" -Directory | Select-Object Name | Where-Object { $_.Name -match 'python|conda|pyenv|poetry' })",
+      "PowerShell(cmd /c \"dir D:\\\\IHM\")",
+      "PowerShell(cmd /c \"where python 2>nul || echo Python not found\")",
+      "PowerShell(cmd /c \"where poetry 2>nul || echo Poetry not found\")"
+    ]
+  }
+}

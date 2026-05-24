@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Always use the Vite dev-server proxy at /api in dev (avoids CORS preflight).
-// In production a real reverse-proxy serves the API at /api as well.
-const API_BASE_URL = '/api';
+// Determine API base URL based on environment
+// In development: use /api (Vite proxy handles forwarding to backend)
+// In production: use actual backend URL from env variable
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance with default config
 const apiClient = axios.create({

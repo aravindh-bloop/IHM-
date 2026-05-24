@@ -1,6 +1,6 @@
 # ihm_backend
 
-This project was generated using fastapi_template.
+This project was generated using fastapi_template package.
 
 ## Poetry
 
