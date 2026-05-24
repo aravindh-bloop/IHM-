@@ -27,16 +27,15 @@ def get_app() -> FastAPI:
         default_response_class=UJSONResponse,
     )
 
-    # Add CORS middleware
-    # Parse origins from comma-separated string
-    origins = ["*"]
-
+    # Add CORS middleware FIRST (must be added before routes)
+    # Allow all origins by default
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 
     # Main router for the API.
