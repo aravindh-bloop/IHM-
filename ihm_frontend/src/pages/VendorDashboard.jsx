@@ -808,7 +808,8 @@ const SupplyHistoryPage = () => {
               </thead>
               <tbody>
                 {history.map((order) => (
-                  <tr key={order.order_id}>
+                   <>
+                   <tr key={order.order_id}>
                     <td>
                       <strong style={{ color: 'var(--primary-700)', fontFamily: 'var(--font-mono, monospace)' }}>
                         {order.invoice_number || '—'}
@@ -871,8 +872,9 @@ const SupplyHistoryPage = () => {
                         </table>
                       </td>
                     </tr>
-                  )}
-                ))}
+                   )}
+                   </>
+                 ))}
               </tbody>
             </table>
           </div>
