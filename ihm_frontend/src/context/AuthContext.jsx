@@ -17,9 +17,8 @@ export const AuthProvider = ({ children }) => {
         const userData = await authAPI.getCurrentUser();
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
-      } catch (error) {
+      } catch {
         // Not authenticated or session expired
-        console.log('Not authenticated:', error.message);
         localStorage.removeItem('user');
         setUser(null);
       } finally {
@@ -47,14 +46,9 @@ export const AuthProvider = ({ children }) => {
       let userData;
       try {
         userData = await authAPI.getCurrentUser();
-      } catch (error) {
-        console.error('Failed to fetch user after login:', error);
+      } catch {
         // Try logout since login succeeded but we can't get user data
-        try {
-          await authAPI.logout();
-        } catch (e) {
-          console.error('Logout after getUserData failure:', e);
-        }
+        try { await authAPI.logout(); } catch { /* ignore */ }
         return { success: false, error: 'Login succeeded but failed to load user data. Please try again.' };
       }
       
@@ -96,7 +90,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userInfo));
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
       const errorMessage = error.response?.data?.detail || error.message || 'Invalid email or password.';
       return { success: false, error: errorMessage };
     }
@@ -106,8 +99,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
+      // ignore logout errors — still clear local state
     } finally {
       setUser(null);
       localStorage.removeItem('user');

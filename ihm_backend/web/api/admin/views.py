@@ -19,6 +19,7 @@ from ihm_backend.web.api.admin.schema import (
     BillsResponse, BillBucket, BillConstituent
 )
 from ihm_backend.web.dependencies.auth import require_role
+from ihm_backend.db.seeds.items import INVENTORY_ITEMS, ITEM_CATEGORY_MAP
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def get_hod_submitted_orders(
         hod_qty = req.hod_quantity or req.quantity
         in_stock = inventory_map.get(req.item_name.lower(), 0.0)
         net_required = max(0.0, hod_qty - in_stock)
-        vendor_cat = category_map.get(req.item_name.lower(), "general_provisions")
+        vendor_cat = category_map.get(req.item_name.lower()) or ITEM_CATEGORY_MAP.get(req.item_name.lower(), "general_provisions")
 
         items.append(HodSubmittedItem(
             id=req.id, stall_id=req.stall_id, stall_name=stall.stall_name,
@@ -230,7 +231,7 @@ async def compile_and_send_to_vendors(
             req.status = "admin_rejected"
             continue
 
-        vendor_cat = category_map.get(req.item_name.lower(), "general_provisions")
+        vendor_cat = category_map.get(req.item_name.lower()) or ITEM_CATEGORY_MAP.get(req.item_name.lower(), "general_provisions")
         key = (req.required_date, vendor_cat)
         buckets.setdefault(key, []).append({
             "req": req,
@@ -489,3 +490,53 @@ async def get_bills(
             for b in out_buckets
         ],
     )
+
+
+# ── ITEM CATALOGUE ────────────────────────────────────────────────────────────
+
+@router.get("/items/catalogue")
+async def get_item_catalogue(
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Return the full classified item catalogue (for reference / autocomplete)."""
+    return [
+        {"item_name": name, "unit": unit, "vendor_category": cat}
+        for name, unit, cat in INVENTORY_ITEMS
+    ]
+
+
+@router.post("/inventory/seed")
+async def seed_inventory(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Populate the inventory table with all catalogue items that don't already exist.
+    Existing items (matched by name, case-insensitive) are left untouched.
+    Returns counts of inserted vs skipped.
+    """
+    inserted = 0
+    skipped = 0
+
+    for item_name, unit, vendor_category in INVENTORY_ITEMS:
+        existing = await db.execute(
+            select(Inventory).where(Inventory.item_name.ilike(item_name))
+        )
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+        db.add(Inventory(
+            item_name=item_name,
+            quantity=0,
+            unit=unit,
+            vendor_category=vendor_category,
+        ))
+        inserted += 1
+
+    await db.commit()
+    return {
+        "message": f"Seeded {inserted} items, skipped {skipped} existing",
+        "inserted": inserted,
+        "skipped": skipped,
+        "total_catalogue": len(INVENTORY_ITEMS),
+    }

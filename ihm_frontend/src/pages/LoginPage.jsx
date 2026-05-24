@@ -42,7 +42,6 @@ export default function LoginPage() {
       const result = await login(credentials);
       if (!result.success) setError(result.error || 'Login failed. Please try again.');
     } catch (err) {
-      console.error(err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

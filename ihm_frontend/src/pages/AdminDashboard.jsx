@@ -209,10 +209,13 @@ const InventoryPage = () => {
   const [loading, setLoading] = React.useState(true);
   const [form, setForm] = React.useState({ item_name: '', quantity: '', unit: '', vendor_category: 'general_provisions' });
   const [saving, setSaving] = React.useState(false);
+  const [seeding, setSeeding] = React.useState(false);
   const [editId, setEditId] = React.useState(null);
   const [editForm, setEditForm] = React.useState({});
+  const [catalogue, setCatalogue] = React.useState([]);
+  const [suggestions, setSuggestions] = React.useState([]);
 
-  React.useEffect(() => { load(); }, []);
+  React.useEffect(() => { load(); loadCatalogue(); }, []);
 
   const load = async () => {
     try {
@@ -224,6 +227,42 @@ const InventoryPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCatalogue = async () => {
+    try {
+      const data = await adminAPI.getItemCatalogue();
+      setCatalogue(data);
+    } catch (_) {}
+  };
+
+  const handleSeed = async () => {
+    if (!window.confirm(`This will add all ${catalogue.length || 'catalogue'} items to inventory at quantity 0 (existing items are untouched). Proceed?`)) return;
+    try {
+      setSeeding(true);
+      const res = await adminAPI.seedInventory();
+      toast.success(`${res.message}`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Seed failed');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleItemNameChange = (value) => {
+    setForm(f => ({ ...f, item_name: value }));
+    if (value.length < 2) { setSuggestions([]); return; }
+    const q = value.toLowerCase();
+    const matches = catalogue
+      .filter(c => c.item_name.toLowerCase().includes(q))
+      .slice(0, 8);
+    setSuggestions(matches);
+  };
+
+  const selectSuggestion = (s) => {
+    setForm({ item_name: s.item_name, unit: s.unit, vendor_category: s.vendor_category, quantity: '' });
+    setSuggestions([]);
   };
 
   const handleAdd = async (e) => {
@@ -258,7 +297,7 @@ const InventoryPage = () => {
     setEditForm({ item_name: item.item_name, quantity: item.quantity, unit: item.unit, vendor_category: item.vendor_category });
   };
 
-  const saveEdit = async (item) => {
+  const saveEdit = async (_item) => {
     try {
       await adminAPI.upsertInventory({ ...editForm, quantity: parseFloat(editForm.quantity) });
       toast.success('Updated');
@@ -271,18 +310,65 @@ const InventoryPage = () => {
 
   return (
     <div className="page-section">
-      <div>
-        <h1 className="page-title">Inventory</h1>
-        <p className="page-description">Manage stock levels. Items here auto-deduct from chef requests.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+        <div>
+          <h1 className="page-title">Inventory</h1>
+          <p className="page-description">Manage stock levels. Items here auto-deduct from chef requests.</p>
+        </div>
+        <button
+          className="btn"
+          onClick={handleSeed}
+          disabled={seeding}
+          style={{ background: 'linear-gradient(135deg, var(--accent-600, #7c3aed), var(--accent-700, #6d28d9))', whiteSpace: 'nowrap' }}
+        >
+          {seeding ? 'Initialising…' : `Initialise Full Catalogue${catalogue.length ? ` (${catalogue.length} items)` : ''}`}
+        </button>
       </div>
 
       <div className="card">
         <h2 className="section-title" style={{ marginBottom: 'var(--spacing-lg)' }}>Add / Update Stock</h2>
         <form onSubmit={handleAdd}>
           <div className="form-grid">
-            <div className="form-group">
+            <div className="form-group" style={{ position: 'relative' }}>
               <label className="form-label">Item Name</label>
-              <input className="form-input" placeholder="e.g. Prawns" value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} />
+              <input
+                className="form-input"
+                placeholder="Type to search catalogue…"
+                value={form.item_name}
+                onChange={e => handleItemNameChange(e.target.value)}
+                autoComplete="off"
+              />
+              {suggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                  background: 'var(--bg-primary)', border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                  maxHeight: 240, overflowY: 'auto'
+                }}>
+                  {suggestions.map(s => (
+                    <div
+                      key={s.item_name}
+                      onClick={() => selectSuggestion(s)}
+                      style={{
+                        padding: '10px 14px', cursor: 'pointer', display: 'flex',
+                        justifyContent: 'space-between', alignItems: 'center',
+                        borderBottom: '1px solid var(--border-light)',
+                        fontSize: 'var(--text-sm)'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span>{s.item_name}</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.unit}</span>
+                        <span className={`cat-chip cat-${s.vendor_category}`} style={{ fontSize: 10 }}>
+                          {catLabel(s.vendor_category)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Quantity</label>
@@ -933,6 +1019,7 @@ const CreateAccountPage = () => {
 
 const BillsPage = () => {
   const [view, setView] = React.useState('daily');
+  const [groupMode, setGroupMode] = React.useState('category'); // 'category' | 'combined'
   const [vendorCat, setVendorCat] = React.useState('');
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
@@ -945,7 +1032,8 @@ const BillsPage = () => {
       setLoading(true);
       const data = await adminAPI.getBills({
         view,
-        vendor_category: vendorCat || undefined,
+        // In combined mode don't filter by category — we want all vendors
+        vendor_category: groupMode === 'combined' ? undefined : (vendorCat || undefined),
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       });
@@ -955,11 +1043,37 @@ const BillsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [view, vendorCat, startDate, endDate]);
+  }, [view, groupMode, vendorCat, startDate, endDate]);
 
   React.useEffect(() => { load(); }, [load]);
 
   const toggle = (key) => setExpanded(e => ({ ...e, [key]: !e[key] }));
+
+  // Merge all category buckets for the same period into one combined bill
+  const combinedPeriods = React.useMemo(() => {
+    const byPeriod = {};
+    for (const b of buckets) {
+      if (!byPeriod[b.bucket_key]) {
+        byPeriod[b.bucket_key] = {
+          bucket_key: b.bucket_key,
+          bucket_label: b.bucket_label,
+          period_start: b.period_start,
+          categories: [],
+          grand_total: 0,
+          total_orders: 0,
+          total_items: 0,
+        };
+      }
+      const p = byPeriod[b.bucket_key];
+      p.categories.push(b);
+      p.grand_total += b.total_price || 0;
+      p.total_orders += b.total_orders || 0;
+      p.total_items += b.total_items || 0;
+    }
+    return Object.values(byPeriod).sort((a, b) => b.period_start > a.period_start ? 1 : -1);
+  }, [buckets]);
+
+  const grandTotal = buckets.reduce((s, b) => s + (b.total_price || 0), 0);
 
   const VIEW_TABS = [
     { id: 'daily', label: 'Daily' },
@@ -967,61 +1081,74 @@ const BillsPage = () => {
     { id: 'monthly', label: 'Monthly' },
   ];
 
-  const grandTotal = buckets.reduce((s, b) => s + (b.total_price || 0), 0);
-
   return (
     <div className="page-section">
       <div>
         <h1 className="page-title">Bills</h1>
         <p className="page-description">
-          Vendor bills aggregated by day, week, or month, grouped per category.
+          Vendor bills aggregated by day, week, or month.
         </p>
       </div>
 
+      {/* ── Controls ── */}
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {VIEW_TABS.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setView(t.id)}
-                className={view === t.id ? 'btn' : 'btn btn-ghost'}
-                style={{ padding: '6px 16px', fontSize: 'var(--text-sm)' }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
 
-          <div className="form-group" style={{ flex: '0 0 200px' }}>
-            <label className="form-label">Vendor Category</label>
-            <select
-              className="form-select"
-              value={vendorCat}
-              onChange={(e) => setVendorCat(e.target.value)}
-            >
-              <option value="">All categories</option>
-              {VENDOR_CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+          {/* Period toggle */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Period</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {VIEW_TABS.map(t => (
+                <button key={t.id} onClick={() => setView(t.id)}
+                  className={view === t.id ? 'btn' : 'btn btn-ghost'}
+                  style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}>
+                  {t.label}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
-          <div className="form-group" style={{ flex: '0 0 160px' }}>
-            <label className="form-label">From</label>
-            <input type="date" className="form-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          {/* Group mode toggle */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">View as</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => setGroupMode('category')}
+                className={groupMode === 'category' ? 'btn' : 'btn btn-ghost'}
+                style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}>
+                By Vendor
+              </button>
+              <button onClick={() => setGroupMode('combined')}
+                className={groupMode === 'combined' ? 'btn' : 'btn btn-ghost'}
+                style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}>
+                Combined
+              </button>
+            </div>
           </div>
-          <div className="form-group" style={{ flex: '0 0 160px' }}>
+
+          {/* Category filter — only in By Vendor mode */}
+          {groupMode === 'category' && (
+            <div className="form-group" style={{ flex: '0 0 190px', marginBottom: 0 }}>
+              <label className="form-label">Category</label>
+              <select className="form-select" value={vendorCat} onChange={e => setVendorCat(e.target.value)}>
+                <option value="">All categories</option>
+                {VENDOR_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group" style={{ flex: '0 0 150px', marginBottom: 0 }}>
+            <label className="form-label">From</label>
+            <input type="date" className="form-input" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ flex: '0 0 150px', marginBottom: 0 }}>
             <label className="form-label">To</label>
-            <input type="date" className="form-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <input type="date" className="form-input" value={endDate} onChange={e => setEndDate(e.target.value)} />
           </div>
 
           {(startDate || endDate || vendorCat) && (
-            <button
-              className="btn btn-ghost"
+            <button className="btn btn-ghost"
               onClick={() => { setStartDate(''); setEndDate(''); setVendorCat(''); }}
-              style={{ padding: '8px 14px', fontSize: 'var(--text-sm)' }}
-            >
+              style={{ padding: '8px 14px', fontSize: 'var(--text-sm)', alignSelf: 'flex-end' }}>
               Clear filters
             </button>
           )}
@@ -1029,16 +1156,18 @@ const BillsPage = () => {
 
         {!loading && buckets.length > 0 && (
           <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: 'var(--spacing-md) var(--spacing-lg)',
             background: 'var(--success-50)', borderRadius: 'var(--radius-md)',
             border: '1px solid var(--success-200, var(--border-light))'
           }}>
             <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-              {buckets.length} bill{buckets.length === 1 ? '' : 's'} in view
+              {groupMode === 'combined'
+                ? `${combinedPeriods.length} period${combinedPeriods.length === 1 ? '' : 's'} · ${buckets.length} vendor bill${buckets.length === 1 ? '' : 's'}`
+                : `${buckets.length} bill${buckets.length === 1 ? '' : 's'} in view`}
             </span>
-            <span style={{ fontWeight: 700, color: 'var(--success-700)' }}>
-              Total: ₹{grandTotal.toFixed(2)}
+            <span style={{ fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--success-700)' }}>
+              Grand Total: ₹{grandTotal.toFixed(2)}
             </span>
           </div>
         )}
@@ -1048,7 +1177,9 @@ const BillsPage = () => {
         <div className="card"><div className="empty-state">Loading…</div></div>
       ) : buckets.length === 0 ? (
         <div className="card"><div className="empty-state">No bills found for the selected filters.</div></div>
-      ) : (
+      ) : groupMode === 'category' ? (
+
+        /* ── BY VENDOR VIEW ── */
         <div className="card">
           <div className="table-container">
             <table className="table">
@@ -1071,60 +1202,31 @@ const BillsPage = () => {
                     <React.Fragment key={key}>
                       <tr style={{ cursor: 'pointer' }} onClick={() => toggle(key)}>
                         <td>{expanded[key] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary-700)' }}>
-                          {b.invoice_ref}
-                        </td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary-700)' }}>{b.invoice_ref}</td>
                         <td>{b.bucket_label}</td>
                         <td><span className={`cat-chip cat-${b.vendor_category}`}>{catLabel(b.vendor_category)}</span></td>
-                        <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                          {b.vendor_email || '—'}
-                        </td>
+                        <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{b.vendor_email || '—'}</td>
                         <td>{b.total_orders}</td>
                         <td>{b.total_items}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success-700)' }}>
-                          ₹{b.total_price.toFixed(2)}
-                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success-700)' }}>₹{b.total_price.toFixed(2)}</td>
                       </tr>
                       {expanded[key] && (
                         <tr>
                           <td colSpan={8} style={{ padding: '0 var(--spacing-2xl) var(--spacing-lg)' }}>
-                            <div style={{
-                              marginTop: 8, background: 'var(--bg-secondary)',
-                              borderRadius: 8, padding: 'var(--spacing-md)'
-                            }}>
-                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--spacing-sm)', fontWeight: 600, textTransform: 'uppercase' }}>
-                                {b.constituents.length} constituent invoice{b.constituents.length === 1 ? '' : 's'}
-                              </div>
+                            <div style={{ marginTop: 8, background: 'var(--bg-secondary)', borderRadius: 8, padding: 'var(--spacing-md)' }}>
+                              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--spacing-sm)', fontWeight: 600, textTransform: 'uppercase' }}>
+                                {b.constituents.length} invoice{b.constituents.length === 1 ? '' : 's'}
+                              </p>
                               <table className="table" style={{ background: 'transparent' }}>
-                                <thead>
-                                  <tr>
-                                    <th>Invoice #</th>
-                                    <th>Delivered</th>
-                                    <th>Delivery Date</th>
-                                    <th>Items</th>
-                                    <th style={{ textAlign: 'right' }}>Amount</th>
-                                  </tr>
-                                </thead>
+                                <thead><tr><th>Invoice #</th><th>Delivered</th><th>Delivery Date</th><th>Items</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
                                 <tbody>
                                   {b.constituents.map(c => (
                                     <tr key={c.compiled_order_id}>
-                                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                        {c.invoice_number || '—'}
-                                      </td>
-                                      <td>
-                                        {c.delivered_at
-                                          ? new Date(c.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                          : '—'}
-                                      </td>
-                                      <td>
-                                        {c.required_date
-                                          ? new Date(c.required_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                                          : '—'}
-                                      </td>
+                                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.invoice_number || '—'}</td>
+                                      <td>{c.delivered_at ? new Date(c.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                                      <td>{c.required_date ? new Date(c.required_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
                                       <td>{c.total_items}</td>
-                                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                                        ₹{c.total_price.toFixed(2)}
-                                      </td>
+                                      <td style={{ textAlign: 'right', fontWeight: 600 }}>₹{c.total_price.toFixed(2)}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1139,6 +1241,112 @@ const BillsPage = () => {
               </tbody>
             </table>
           </div>
+        </div>
+
+      ) : (
+
+        /* ── COMBINED VIEW ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+          {combinedPeriods.map(period => (
+            <div key={period.bucket_key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+
+              {/* Period header */}
+              <div style={{
+                padding: 'var(--spacing-lg) var(--spacing-2xl)',
+                background: 'linear-gradient(135deg, var(--primary-600), var(--primary-700))',
+                color: 'white',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12
+              }}>
+                <div>
+                  <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700 }}>{period.bucket_label}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', opacity: 0.8, marginTop: 2 }}>
+                    {period.total_orders} order{period.total_orders === 1 ? '' : 's'} · {period.total_items} item{period.total_items === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', opacity: 0.8 }}>Grand Total</div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                    ₹{period.grand_total.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Category breakdown */}
+              <div style={{ padding: 'var(--spacing-lg) var(--spacing-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                  Breakdown by vendor
+                </div>
+
+                {period.categories.map(b => {
+                  const pct = period.grand_total > 0 ? (b.total_price / period.grand_total) * 100 : 0;
+                  const key = `combined-${period.bucket_key}-${b.vendor_category}`;
+                  return (
+                    <div key={b.vendor_category} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                      <div
+                        onClick={() => toggle(key)}
+                        style={{
+                          padding: 'var(--spacing-md) var(--spacing-lg)',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)',
+                          background: 'var(--bg-secondary)'
+                        }}
+                      >
+                        {expanded[key] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                        <span className={`cat-chip cat-${b.vendor_category}`}>{catLabel(b.vendor_category)}</span>
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', flex: 1 }}>
+                          {b.vendor_email || ''} · {b.total_orders} order{b.total_orders === 1 ? '' : 's'} · {b.total_items} item{b.total_items === 1 ? '' : 's'}
+                        </span>
+                        {/* Share bar */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 80, height: 6, background: 'var(--border-light)', borderRadius: 99, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: 'var(--primary-500)', borderRadius: 99 }} />
+                          </div>
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', width: 34, textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                        </div>
+                        <span style={{ fontWeight: 700, color: 'var(--success-700)', minWidth: 90, textAlign: 'right' }}>
+                          ₹{b.total_price.toFixed(2)}
+                        </span>
+                      </div>
+
+                      {/* Invoice details per category */}
+                      {expanded[key] && (
+                        <div style={{ padding: 'var(--spacing-md) var(--spacing-lg)', background: 'var(--bg-primary)' }}>
+                          <table className="table" style={{ background: 'transparent' }}>
+                            <thead><tr><th>Invoice #</th><th>Delivered</th><th>Delivery Date</th><th>Items</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+                            <tbody>
+                              {b.constituents.map(c => (
+                                <tr key={c.compiled_order_id}>
+                                  <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.invoice_number || '—'}</td>
+                                  <td>{c.delivered_at ? new Date(c.delivered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                                  <td>{c.required_date ? new Date(c.required_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                                  <td>{c.total_items}</td>
+                                  <td style={{ textAlign: 'right', fontWeight: 600 }}>₹{c.total_price.toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Period total row */}
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: 'var(--spacing-md) var(--spacing-lg)',
+                  borderTop: '2px solid var(--border-default)',
+                  marginTop: 'var(--spacing-xs)'
+                }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Total for {period.bucket_label}
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: 'var(--text-lg)', color: 'var(--success-700)' }}>
+                    ₹{period.grand_total.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

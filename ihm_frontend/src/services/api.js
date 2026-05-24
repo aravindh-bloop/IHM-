@@ -123,6 +123,16 @@ export const adminAPI = {
     return response.data;
   },
 
+  seedInventory: async () => {
+    const response = await apiClient.post('/admin/inventory/seed');
+    return response.data;
+  },
+
+  getItemCatalogue: async () => {
+    const response = await apiClient.get('/admin/items/catalogue');
+    return response.data;
+  },
+
   getBills: async ({ view = 'daily', vendor_category, start_date, end_date } = {}) => {
     const params = { view };
     if (vendor_category) params.vendor_category = vendor_category;
@@ -192,6 +202,12 @@ export const stallAPI = {
   // Delete a specific request
   deleteRequest: async (requestId) => {
     const response = await apiClient.delete(`/stall/request/${requestId}`);
+    return response.data;
+  },
+
+  // Get full item catalogue for ordering
+  getAvailableItems: async () => {
+    const response = await apiClient.get('/stall/items');
     return response.data;
   },
 };

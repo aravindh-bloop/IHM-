@@ -1,8 +1,11 @@
 """Email service for sending notifications."""
+import logging
 from typing import List, Optional
 from datetime import datetime
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from ihm_backend.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 # Email configuration
@@ -204,7 +207,7 @@ async def send_invoice_email(
     valid_recipients = [email for email in recipients if email and email.strip()]
     
     if not valid_recipients:
-        print("Warning: No valid email recipients found")
+        logger.warning("No valid email recipients found for invoice email")
         return
     
     html_content = generate_invoice_email_html(order_data)
@@ -220,10 +223,9 @@ async def send_invoice_email(
     
     try:
         await fm.send_message(message)
-        print(f"Invoice email sent successfully to {len(valid_recipients)} admin(s)")
+        logger.info("Invoice email sent to %d admin(s)", len(valid_recipients))
     except Exception as e:
-        print(f"Failed to send invoice email: {e}")
-        # Don't raise exception to avoid breaking the API call
+        logger.error("Failed to send invoice email: %s", e)
 
 
 async def send_order_notification_email(

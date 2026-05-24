@@ -47,7 +47,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     role: UserRole = Column(AlchemyEnum(UserRole), nullable=False)
     kitchen: Kitchen | None = Column(AlchemyEnum(Kitchen), nullable=True)
     vendor_category: str | None = Column(String, nullable=True)  # seafood / vegetables_fruits / general_provisions
-    created_at: datetime = Column(DateTime, default=datetime.utcnow())
+    created_at: datetime = Column(DateTime, default=datetime.utcnow)
     stalls = relationship("Stall", back_populates="operator", lazy="select")
 
 

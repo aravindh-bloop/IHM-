@@ -10,6 +10,7 @@ from fastapi_users import FastAPIUsers
 from ihm_backend.db.models.users import api_users
 from ihm_backend.web.dependencies.auth import require_kitchen_access
 from sqlalchemy import select, delete
+from ihm_backend.db.seeds.items import INVENTORY_ITEMS
 
 router = APIRouter()
 
@@ -85,7 +86,7 @@ async def get_requests(
     requests = requests_res.scalars().all()
 
     return {
-        "message": "Raw Material requests retrived successfully",
+        "message": "Raw material requests retrieved successfully",
         "stall_id": str(stall.id),
         "stall_name": stall.stall_name,
         "requests": [
@@ -219,3 +220,15 @@ async def update_request(
         "status": request_to_update.status,
         "created_at": request_to_update.created_at.isoformat() if request_to_update.created_at else None
     }
+
+
+
+@router.get("/items")
+async def get_available_items(
+    current_user: User = Depends(require_kitchen_access),
+):
+    """Return the full item catalogue for the chef ordering form."""
+    return [
+        {"item_name": name, "unit": unit, "vendor_category": cat}
+        for name, unit, cat in INVENTORY_ITEMS
+    ]

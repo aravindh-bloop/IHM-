@@ -518,12 +518,9 @@ const IncomingOrdersPage = () => {
   const fetchIncomingOrders = async () => {
     try {
       setLoading(true);
-      console.log('Fetching incoming orders...');
       const response = await vendorAPI.getIncomingOrders();
-      console.log('Incoming orders response:', response);
       setOrders(response);
     } catch (err) {
-      console.error('Error fetching incoming orders:', err);
       const errorMsg = err.response?.data?.detail || err.message || 'Failed to fetch incoming orders';
       toast.error(`Error: ${errorMsg}`);
     } finally {
@@ -587,7 +584,6 @@ const IncomingOrdersPage = () => {
       toast.success(`Bill ${res.invoice_number} generated — ₹${(res.total_price || total).toFixed(2)}`);
       fetchIncomingOrders();
     } catch (err) {
-      console.error('Error generating bill:', err);
       const errorMsg = err.response?.data?.detail || err.message || 'Failed to generate bill';
       toast.error(errorMsg);
     }
@@ -736,6 +732,7 @@ const SupplyHistoryPage = () => {
   const [history, setHistory] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const [expandedOrder, setExpandedOrder] = React.useState(null);
 
   React.useEffect(() => {
     fetchSupplyHistory();
@@ -745,18 +742,10 @@ const SupplyHistoryPage = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching supply history...');
       const response = await vendorAPI.getSupplyHistory();
-      console.log('Supply history response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response length:', Array.isArray(response) ? response.length : 'not an array');
       setHistory(Array.isArray(response) ? response : []);
     } catch (err) {
-      console.error('Error fetching supply history:', err);
-      console.error('Error status:', err.response?.status);
-      console.error('Error data:', err.response?.data);
       const errorMsg = err.response?.data?.detail || err.message || 'Failed to fetch history';
-      console.error('Error message:', errorMsg);
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -845,12 +834,44 @@ const SupplyHistoryPage = () => {
                       {order.total_price ? `₹${order.total_price.toFixed(2)}` : 'N/A'}
                     </td>
                     <td>
-                      <button className="btn btn-small">
+                      <button
+                        className="btn btn-small"
+                        onClick={() => setExpandedOrder(expandedOrder === order.order_id ? null : order.order_id)}
+                        style={{ padding: '0.3rem 0.75rem' }}
+                      >
                         <Eye size={16} />
-                        View
+                        {expandedOrder === order.order_id ? 'Hide' : 'View'}
                       </button>
                     </td>
                   </tr>
+                  {expandedOrder === order.order_id && (
+                    <tr key={`${order.order_id}-detail`}>
+                      <td colSpan={7} style={{ padding: '0 var(--spacing-md) var(--spacing-md)', background: 'var(--bg-secondary)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-light)' }}>Item</th>
+                              <th style={{ textAlign: 'right', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-light)' }}>Ordered</th>
+                              <th style={{ textAlign: 'right', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-light)' }}>Delivered</th>
+                              <th style={{ textAlign: 'right', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-light)' }}>Unit Price</th>
+                              <th style={{ textAlign: 'right', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-light)' }}>Line Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(order.items || []).map((item, idx) => (
+                              <tr key={idx}>
+                                <td style={{ padding: '0.4rem 0.5rem' }}>{item.item_name}</td>
+                                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.total_quantity} {item.unit}</td>
+                                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.delivered_quantity ?? '—'} {item.unit}</td>
+                                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.unit_price != null ? `₹${item.unit_price.toFixed(2)}` : '—'}</td>
+                                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{item.total_price != null ? `₹${item.total_price.toFixed(2)}` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
                 ))}
               </tbody>
             </table>

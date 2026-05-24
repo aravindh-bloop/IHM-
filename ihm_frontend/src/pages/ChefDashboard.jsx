@@ -5,14 +5,17 @@ import { stallAPI } from '../services/api';
 import { Plus, Trash2, History, LogOut, ChefHat, Moon, Sun } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const AVAILABLE_ITEMS = [
-  "Onion", "Tomato", "Potato", "Carrot", "Garlic", "Ginger", "Green Chilli", "Bell Pepper (Capsicum)", "Cabbage", "Cauliflower", "Spinach", "Lady's Finger (Okra)", "Brinjal (Eggplant)", "Cucumber", "Lemon", "Coriander Leaves", "Mint Leaves", "Curry Leaves",
-  "Basmati Rice", "Sona Masoori Rice", "Idli Rice", "Whole Wheat Flour (Atta)", "All-Purpose Flour (Maida)", "Semolina (Rava/Sooji)", "Toor Dal (Arhar)", "Moong Dal", "Chana Dal", "Urad Dal", "Masoor Dal", "Chickpeas (Kabuli Chana)",
-  "Turmeric Powder", "Red Chilli Powder", "Coriander Powder", "Cumin Powder", "Garam Masala", "Mustard Seeds", "Cumin Seeds", "Fenugreek Seeds", "Asafoetida (Hing)", "Black Pepper", "Cardamom", "Cloves", "Cinnamon", "Salt",
-  "Milk", "Yogurt (Curd)", "Paneer", "Ghee", "Butter",
-  "Sunflower Oil", "Groundnut Oil", "Mustard Oil", "Coconut Oil",
-  "Sugar", "Jaggery", "Poha (Flattened Rice)", "Tamarind", "Vinegar"
-];
+const CAT_LABELS = {
+  seafood: 'Seafood',
+  vegetables_fruits: 'Veg & Fruits',
+  general_provisions: 'Provisions',
+};
+
+const CAT_COLORS = {
+  seafood: { bg: '#e0f2fe', color: '#0369a1' },
+  vegetables_fruits: { bg: '#dcfce7', color: '#15803d' },
+  general_provisions: { bg: '#fef3c7', color: '#b45309' },
+};
 
 const DashboardStyles = () => (
   <style>{`
@@ -256,13 +259,6 @@ const DashboardStyles = () => (
     .item-card:hover {
       box-shadow: var(--shadow-lg);
       transform: translateY(-4px);
-    }
-    
-    .item-image {
-      width: 100%;
-      height: 140px;
-      object-fit: cover;
-      border-bottom: 1px solid var(--border-light);
     }
     
     .item-content {
@@ -726,44 +722,55 @@ const CreateOrderPage = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [catalogStates, setCatalogStates] = React.useState({});
+  const [catalogue, setCatalogue] = React.useState([]);
+  const [catalogueLoading, setCatalogueLoading] = React.useState(true);
   // dayCarts[i] = [{ name, quantity, unit }]
   const [dayCarts, setDayCarts] = React.useState(() => days.map(() => []));
 
-  const filteredItems = AVAILABLE_ITEMS.filter(item =>
-    item.toLowerCase().includes(searchQuery.toLowerCase())
+  React.useEffect(() => {
+    stallAPI.getAvailableItems()
+      .then(data => setCatalogue(data))
+      .catch(() => toast.error('Failed to load item catalogue'))
+      .finally(() => setCatalogueLoading(false));
+  }, []);
+
+  const filteredItems = catalogue.filter(item =>
+    item.item_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleUpdateState = (item, field, value) => {
+  const handleUpdateState = (itemName, field, value) => {
     setCatalogStates(prev => ({
       ...prev,
-      [item]: {
-        ...(prev[item] || { quantity: 1, unit: 'kg' }),
+      [itemName]: {
+        ...(prev[itemName] || { quantity: 1 }),
         [field]: value
       }
     }));
   };
 
   const handleAddItem = (item) => {
-    const state = catalogStates[item] || { quantity: 1, unit: 'kg' };
+    const defaultUnit = item.unit || 'kg';
+    const state = catalogStates[item.item_name] || { quantity: 1, unit: defaultUnit };
     const quantity = parseInt(state.quantity) || 1;
+    const unit = state.unit || defaultUnit;
 
     setDayCarts(prev => {
       const next = prev.map(cart => [...cart]);
       const cart = next[activeDayIdx];
-      const existingIdx = cart.findIndex(i => i.name === item && i.unit === state.unit);
+      const existingIdx = cart.findIndex(i => i.name === item.item_name && i.unit === unit);
       if (existingIdx >= 0) {
         cart[existingIdx].quantity += quantity;
       } else {
-        cart.push({ name: item, quantity, unit: state.unit });
+        cart.push({ name: item.item_name, quantity, unit });
       }
       return next;
     });
 
-    toast.success(`Added ${quantity} ${state.unit} of ${item} to ${fmtDateLabel(days[activeDayIdx])}`);
+    toast.success(`Added ${quantity} ${unit} of ${item.item_name} to ${fmtDateLabel(days[activeDayIdx])}`);
 
     setCatalogStates(prev => ({
       ...prev,
-      [item]: { quantity: 1, unit: state.unit }
+      [item.item_name]: { quantity: 1, unit }
     }));
   };
 
@@ -815,7 +822,6 @@ const CreateOrderPage = () => {
         setDayCarts(days.map(() => []));
       }, 1500);
     } catch (error) {
-      console.error('Error submitting 5-day order:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
       toast.error(`Error: ${errorMsg}`);
     } finally {
@@ -823,7 +829,6 @@ const CreateOrderPage = () => {
     }
   };
 
-  const placeholderImg = "https://cdn.britannica.com/17/196817-159-9E487F15/vegetables.jpg";
   const activeCart = dayCarts[activeDayIdx];
 
   return (
@@ -879,24 +884,48 @@ const CreateOrderPage = () => {
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder="Search catalogue (e.g., Onion, Tomato...)"
+                  placeholder="Search catalogue (e.g., Onion, Pomfret, Cardamom...)"
                   className="form-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ width: '100%' }}
                 />
               </div>
+              {!catalogueLoading && (
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--spacing-xs)' }}>
+                  {filteredItems.length} of {catalogue.length} items
+                </div>
+              )}
             </div>
           </div>
 
           <div className="catalog-grid">
-            {filteredItems.map(item => {
-              const state = catalogStates[item] || { quantity: 1, unit: 'kg' };
+            {catalogueLoading ? (
+              <div style={{ padding: 'var(--spacing-2xl)', textAlign: 'center', color: 'var(--text-muted)', gridColumn: '1 / -1' }}>
+                Loading catalogue…
+              </div>
+            ) : filteredItems.map(item => {
+              const defaultUnit = item.unit || 'kg';
+              const state = catalogStates[item.item_name] || { quantity: 1, unit: defaultUnit };
+              const catStyle = CAT_COLORS[item.vendor_category] || CAT_COLORS.general_provisions;
               return (
-                <div key={item} className="item-card">
-                  <img src={placeholderImg} alt={item} className="item-image" />
+                <div key={item.item_name} className="item-card">
                   <div className="item-content">
-                    <h3 className="item-title">{item}</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--spacing-sm)' }}>
+                      <h3 className="item-title">{item.item_name}</h3>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: '999px',
+                        background: catStyle.bg,
+                        color: catStyle.color,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}>
+                        {CAT_LABELS[item.vendor_category] || 'Other'}
+                      </span>
+                    </div>
 
                     <div className="item-controls">
                       <input
@@ -904,12 +933,12 @@ const CreateOrderPage = () => {
                         min="1"
                         className="form-input qty-input"
                         value={state.quantity}
-                        onChange={(e) => handleUpdateState(item, 'quantity', e.target.value)}
+                        onChange={(e) => handleUpdateState(item.item_name, 'quantity', e.target.value)}
                       />
                       <select
                         className="form-select"
-                        value={state.unit}
-                        onChange={(e) => handleUpdateState(item, 'unit', e.target.value)}
+                        value={state.unit || defaultUnit}
+                        onChange={(e) => handleUpdateState(item.item_name, 'unit', e.target.value)}
                         style={{ flex: 1, padding: '0.5rem' }}
                       >
                         <option>kg</option>
@@ -917,6 +946,9 @@ const CreateOrderPage = () => {
                         <option>pieces</option>
                         <option>grams</option>
                         <option>packet</option>
+                        <option>ml</option>
+                        <option>dozen</option>
+                        <option>bunch</option>
                       </select>
                     </div>
 
@@ -932,9 +964,9 @@ const CreateOrderPage = () => {
                 </div>
               );
             })}
-            {filteredItems.length === 0 && (
+            {!catalogueLoading && filteredItems.length === 0 && (
               <div style={{ padding: 'var(--spacing-2xl)', textAlign: 'center', color: 'var(--text-muted)', gridColumn: '1 / -1' }}>
-                No items found matching "{searchQuery}"
+                {searchQuery ? `No items found matching "${searchQuery}"` : 'No items in catalogue.'}
               </div>
             )}
           </div>
@@ -1008,14 +1040,10 @@ const OrderHistoryPage = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading order history...');
       const response = await stallAPI.getRequests();
-      console.log('Order history response:', response);
       setRequests(response.requests || []);
     } catch (error) {
-      console.error('Error loading order history:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error('Error detail:', errorMsg);
       setError(errorMsg);
     } finally {
       setLoading(false);

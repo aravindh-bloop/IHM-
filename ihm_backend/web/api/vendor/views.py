@@ -51,10 +51,6 @@ async def get_incoming_orders(
     current_user: User = Depends(require_role(UserRole.VENDOR))
 ):
     """Get all incoming orders (compiled orders assigned to this vendor)"""
-    print(f"\n=== VENDOR INCOMING ORDERS ===")
-    print(f"Vendor ID: {current_user.id}")
-    print(f"Vendor email: {current_user.email}")
-    
     # Get compiled orders for this vendor with status='pending'
     result = await db.execute(
         select(CompiledOrders)
@@ -65,16 +61,13 @@ async def get_incoming_orders(
         .order_by(CompiledOrders.created_at.desc())
     )
     compiled_orders = result.scalars().all()
-    print(f"Found {len(compiled_orders)} pending compiled orders")
-    
+
     response = []
     for compiled_order in compiled_orders:
-        # Get all order items for this compiled order
         orders_result = await db.execute(
             select(Orders).where(Orders.compiled_order_id == compiled_order.id)
         )
         orders = orders_result.scalars().all()
-        print(f"  Order {compiled_order.id}: {len(orders)} items")
         
         order_items = [
             OrderItemForVendor(
@@ -103,8 +96,6 @@ async def get_incoming_orders(
             )
         )
     
-    print(f"Returning {len(response)} incoming orders")
-    print(f"=== END INCOMING ORDERS ===")
     return response
 
 
@@ -213,8 +204,8 @@ async def update_order_status(
             admin_emails = [a.email for a in admin_result.scalars() if a.email] or [settings.admin_email]
             if admin_emails:
                 background_tasks.add_task(send_invoice_email, admin_emails, order_data)
-        except Exception as e:
-            print(f"Error scheduling email: {e}")
+        except Exception:
+            pass  # email failure must not break the bill generation response
 
     await db.commit()
 
@@ -233,9 +224,6 @@ async def get_supply_history(
     current_user: User = Depends(require_role(UserRole.VENDOR))
 ):
     """Get vendor's supply history (completed/cancelled orders)"""
-    print(f"\n=== VENDOR SUPPLY HISTORY ===")
-    print(f"Vendor ID: {current_user.id}")
-    
     result = await db.execute(
         select(CompiledOrders)
         .where(
@@ -245,16 +233,13 @@ async def get_supply_history(
         .order_by(CompiledOrders.delivered_at.desc().nullslast(), CompiledOrders.created_at.desc())
     )
     compiled_orders = result.scalars().all()
-    print(f"Found {len(compiled_orders)} delivered/cancelled orders")
-    
+
     history = []
     for order in compiled_orders:
-        # Get all order items for this compiled order
         orders_result = await db.execute(
             select(Orders).where(Orders.compiled_order_id == order.id)
         )
         orders = orders_result.scalars().all()
-        print(f"  Order {order.id}: {len(orders)} items, status={order.status}")
 
         order_items = [
             OrderItemForVendor(
@@ -283,6 +268,4 @@ async def get_supply_history(
             )
         )
     
-    print(f"Returning {len(history)} history items")
-    print(f"=== END SUPPLY HISTORY ===")
     return history
