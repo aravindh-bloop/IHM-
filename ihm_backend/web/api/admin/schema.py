@@ -44,6 +44,8 @@ class InventoryItem(BaseModel):
     quantity: float
     unit: str
     vendor_category: str  # seafood / vegetables_fruits / general_provisions
+    low_stock_threshold: float = 5
+    is_low_stock: bool = False
 
     class Config:
         from_attributes = True
@@ -54,6 +56,7 @@ class InventoryUpsertRequest(BaseModel):
     quantity: float
     unit: str
     vendor_category: str
+    low_stock_threshold: Optional[float] = None
 
 
 class CompileRequest(BaseModel):
@@ -125,3 +128,42 @@ class BillsResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── GOODS RECEIPT (admin confirms vendor-frozen orders) ──────────────────────
+
+class ReceiptItemUpdate(BaseModel):
+    item_id: str
+    delivered_quantity: Optional[int] = None
+    unit_price: Optional[float] = None
+
+
+class ConfirmReceiptRequest(BaseModel):
+    items: Optional[List[ReceiptItemUpdate]] = None  # optional last-minute admin edits
+
+
+class ConfirmReceiptResponse(BaseModel):
+    message: str
+    compiled_order_id: str
+    invoice_number: str
+    total_price: float
+    delivered_at: datetime
+
+
+# ── TRACKING (kitchen-wise / category-wise, daily/weekly/monthly) ───────────
+
+class TrackingBucket(BaseModel):
+    bucket_key: str
+    bucket_label: str
+    period_start: date
+    period_end: date
+    group_key: str            # kitchen name or vendor_category, depending on group_by
+    total_price: float
+    total_items: int
+    total_orders: int
+
+
+class TrackingSummaryResponse(BaseModel):
+    view: str
+    group_by: str              # 'kitchen' | 'category'
+    buckets: List[TrackingBucket]

@@ -13,4 +13,5 @@ class Inventory(Base):
     quantity: float = Column(Numeric(10, 2), nullable=False, default=0)
     unit: str = Column(String, nullable=False)
     vendor_category: str = Column(String, nullable=False, default="general_provisions")
+    low_stock_threshold: float = Column(Numeric(10, 2), nullable=False, default=5)
     updated_at: datetime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

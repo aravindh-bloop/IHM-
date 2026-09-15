@@ -80,8 +80,9 @@ async def get_requests(
         )
 
     requests_res = await db.execute(
-        select(RawMaterialRequests).where(RawMaterialRequests.stall_id ==
-                                          stall.id)
+        select(RawMaterialRequests)
+        .where(RawMaterialRequests.stall_id == stall.id)
+        .order_by(RawMaterialRequests.required_date.desc(), RawMaterialRequests.created_at.desc())
     )
     requests = requests_res.scalars().all()
 

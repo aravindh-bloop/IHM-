@@ -51,15 +51,24 @@ async def register_user(
     user_create_dict = user_data.model_dump(exclude={"stall_name"})
     user = await user_manager.create(UserCreate(**user_create_dict), safe=True, request=None)
 
-    # Create stall if user is STALL_OWNER and stall_name is provided
+    # Create (or update) the stall if user is STALL_OWNER and stall_name is provided.
+    # One operator = one stall; never create a duplicate for the same operator.
     if user.role == UserRole.STALL_OWNER and stall_name:
-        stall = Stall(
-            id=uuid.uuid4(),
-            stall_name=stall_name,
-            kitchen=user.kitchen,
-            operator_id=user.id
+        from sqlalchemy import select as _select
+        existing_stall_result = await session.execute(
+            _select(Stall).where(Stall.operator_id == user.id)
         )
-        session.add(stall)
+        existing_stall = existing_stall_result.scalar_one_or_none()
+        if existing_stall:
+            existing_stall.stall_name = stall_name
+            existing_stall.kitchen = user.kitchen
+        else:
+            session.add(Stall(
+                id=uuid.uuid4(),
+                stall_name=stall_name,
+                kitchen=user.kitchen,
+                operator_id=user.id
+            ))
         await session.commit()
 
     return UserRead.model_validate(user)

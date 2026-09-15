@@ -16,10 +16,13 @@ from ihm_backend.web.api.admin.schema import (
     HodSubmittedResponse, HodSubmittedItem, AdminEditItemRequest,
     InventoryItem, InventoryUpsertRequest, CompileRequest, CompileOrderResponse,
     CompiledOrderDetail, OrderDetail,
-    BillsResponse, BillBucket, BillConstituent
+    BillsResponse, BillBucket, BillConstituent,
+    ConfirmReceiptRequest, ConfirmReceiptResponse,
+    TrackingSummaryResponse, TrackingBucket,
 )
 from ihm_backend.web.dependencies.auth import require_role
 from ihm_backend.db.seeds.items import INVENTORY_ITEMS, ITEM_CATEGORY_MAP
+from ihm_backend.services.billing import generate_invoice_number
 
 router = APIRouter()
 
@@ -28,13 +31,30 @@ VENDOR_CATEGORIES = ["seafood", "vegetables_fruits", "general_provisions"]
 
 # ── INVENTORY ────────────────────────────────────────────────────────────────
 
+def _with_low_stock_flag(item: Inventory) -> InventoryItem:
+    out = InventoryItem.model_validate(item)
+    out.is_low_stock = float(item.quantity) < float(item.low_stock_threshold)
+    return out
+
+
 @router.get("/inventory", response_model=List[InventoryItem])
 async def get_inventory(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(require_role(UserRole.ADMIN))
 ):
     result = await db.execute(select(Inventory).order_by(Inventory.item_name))
-    return result.scalars().all()
+    return [_with_low_stock_flag(i) for i in result.scalars().all()]
+
+
+@router.get("/inventory/low-stock", response_model=List[InventoryItem])
+async def get_low_stock_inventory(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Items whose current quantity has fallen below their low-stock threshold."""
+    result = await db.execute(select(Inventory).order_by(Inventory.item_name))
+    items = [_with_low_stock_flag(i) for i in result.scalars().all()]
+    return [i for i in items if i.is_low_stock]
 
 
 @router.post("/inventory", response_model=InventoryItem)
@@ -56,16 +76,19 @@ async def upsert_inventory(
         item.quantity = data.quantity
         item.unit = data.unit
         item.vendor_category = data.vendor_category
+        if data.low_stock_threshold is not None:
+            item.low_stock_threshold = data.low_stock_threshold
     else:
         item = Inventory(
             item_name=data.item_name, quantity=data.quantity,
-            unit=data.unit, vendor_category=data.vendor_category
+            unit=data.unit, vendor_category=data.vendor_category,
+            low_stock_threshold=data.low_stock_threshold if data.low_stock_threshold is not None else 5,
         )
         db.add(item)
 
     await db.commit()
     await db.refresh(item)
-    return item
+    return _with_low_stock_flag(item)
 
 
 @router.delete("/inventory/{item_id}")
@@ -238,6 +261,8 @@ async def compile_and_send_to_vendors(
             "item_name": req.item_name,
             "final_qty": int(final_qty),
             "unit": req.unit,
+            "stall_id": stall.id,
+            "kitchen": stall.kitchen,
         })
 
     compiled_summaries = []
@@ -264,7 +289,10 @@ async def compile_and_send_to_vendors(
                 compiled_order_id=compiled_order.id,
                 item_name=it["item_name"],
                 total_quantity=it["final_qty"],
-                unit=it["unit"]
+                unit=it["unit"],
+                stall_id=it["stall_id"],
+                kitchen=it["kitchen"],
+                raw_material_request_id=it["req"].id,
             )
             db.add(order)
             it["req"].status = "admin_compiled"
@@ -340,6 +368,127 @@ async def get_compiled_orders(
             ]
         ))
     return out
+
+
+# ── GOODS RECEIPT (admin confirms vendor-frozen orders, then bill is generated) ──
+
+@router.get("/orders/awaiting-receipt", response_model=List[CompiledOrderDetail])
+async def get_orders_awaiting_receipt(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Orders the vendor has frozen (vendor_confirmed) and admin still needs to confirm receipt of."""
+    result = await db.execute(
+        select(CompiledOrders)
+        .where(CompiledOrders.status == "vendor_confirmed")
+        .order_by(CompiledOrders.created_at.asc())
+    )
+    compiled_orders = result.scalars().all()
+
+    vendor_ids = {co.vendor_id for co in compiled_orders if co.vendor_id}
+    vendor_email_map = {}
+    if vendor_ids:
+        vres = await db.execute(select(User).where(User.id.in_(vendor_ids)))
+        vendor_email_map = {v.id: v.email for v in vres.scalars()}
+
+    out = []
+    for co in compiled_orders:
+        orders_res = await db.execute(select(Orders).where(Orders.compiled_order_id == co.id))
+        orders = orders_res.scalars().all()
+        out.append(CompiledOrderDetail(
+            id=str(co.id), created_at=co.created_at,
+            vendor_id=str(co.vendor_id) if co.vendor_id else None,
+            vendor_email=vendor_email_map.get(co.vendor_id),
+            vendor_category=co.vendor_category,
+            required_date=co.required_date,
+            status=co.status, total_items=co.total_items,
+            total_price=float(co.total_price) if co.total_price else None,
+            invoice_number=co.invoice_number,
+            delivered_at=co.delivered_at,
+            items=[
+                OrderDetail(
+                    order_id=str(o.id), item_name=o.item_name,
+                    total_quantity=o.total_quantity, delivered_quantity=o.delivered_quantity,
+                    unit=o.unit,
+                    unit_price=float(o.unit_price) if o.unit_price else None,
+                    total_price=float(o.total_price) if o.total_price else None
+                ) for o in orders
+            ]
+        ))
+    return out
+
+
+@router.post("/orders/{compiled_order_id}/confirm-receipt", response_model=ConfirmReceiptResponse)
+async def confirm_receipt(
+    compiled_order_id: uuid.UUID,
+    body: ConfirmReceiptRequest | None = None,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """
+    Admin confirms goods were received for a vendor-frozen order:
+    optionally makes last-minute edits, generates the invoice, closes the order,
+    and restocks inventory with the delivered quantities.
+    """
+    result = await db.execute(select(CompiledOrders).where(CompiledOrders.id == compiled_order_id))
+    compiled_order = result.scalar_one_or_none()
+    if not compiled_order:
+        raise HTTPException(status_code=404, detail="Compiled order not found")
+    if compiled_order.status != "vendor_confirmed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only orders frozen by the vendor can be confirmed (current status: {compiled_order.status})"
+        )
+
+    orders_result = await db.execute(select(Orders).where(Orders.compiled_order_id == compiled_order_id))
+    orders = {str(o.id): o for o in orders_result.scalars().all()}
+
+    # Optional last-minute admin edits before confirming
+    if body and body.items:
+        for edit in body.items:
+            order = orders.get(edit.item_id)
+            if not order:
+                continue
+            if edit.delivered_quantity is not None:
+                order.delivered_quantity = edit.delivered_quantity
+            if edit.unit_price is not None:
+                order.unit_price = edit.unit_price
+
+    total_price_sum = 0.0
+    for order in orders.values():
+        qty = order.delivered_quantity if order.delivered_quantity is not None else order.total_quantity
+        price = float(order.unit_price) if order.unit_price is not None else None
+        if price is not None:
+            order.total_price = price * qty
+            total_price_sum += order.total_price
+        order.delivered_quantity = qty
+
+        # Restock inventory with what was actually received
+        inv_result = await db.execute(select(Inventory).where(Inventory.item_name.ilike(order.item_name)))
+        inv = inv_result.scalar_one_or_none()
+        if inv:
+            inv.quantity = float(inv.quantity) + qty
+        else:
+            db.add(Inventory(
+                item_name=order.item_name, quantity=qty,
+                unit=order.unit or "kg", vendor_category=compiled_order.vendor_category or "general_provisions",
+            ))
+
+    invoice_number = await generate_invoice_number(db, compiled_order.vendor_category)
+    compiled_order.status = "delivered"
+    compiled_order.invoice_number = invoice_number
+    compiled_order.delivered_at = datetime.utcnow()
+    compiled_order.total_price = total_price_sum if total_price_sum > 0 else compiled_order.total_price
+
+    await db.commit()
+
+    return ConfirmReceiptResponse(
+        message="Receipt confirmed, bill generated, inventory restocked",
+        compiled_order_id=str(compiled_order.id),
+        invoice_number=invoice_number,
+        total_price=total_price_sum,
+        delivered_at=compiled_order.delivered_at,
+    )
 
 
 # ── BILLS (aggregated by daily / weekly / monthly) ───────────────────────────
@@ -486,6 +635,95 @@ async def get_bills(
                 total_orders=len(b["constituents"]),
                 total_items=b["total_items"],
                 constituents=b["constituents"],
+            )
+            for b in out_buckets
+        ],
+    )
+
+
+# ── TRACKING (kitchen-wise / category-wise, daily/weekly/monthly) ───────────
+
+@router.get("/tracking/summary", response_model=TrackingSummaryResponse)
+async def get_tracking_summary(
+    view: str = Query("weekly", pattern="^(daily|weekly|monthly)$"),
+    group_by: str = Query("kitchen", pattern="^(kitchen|category)$"),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    Spend/volume tracking grouped by kitchen or vendor category, over
+    daily/weekly/monthly buckets, based on delivered (billed) orders.
+    """
+    query = (
+        select(Orders, CompiledOrders)
+        .join(CompiledOrders, Orders.compiled_order_id == CompiledOrders.id)
+        .where(CompiledOrders.status == "delivered")
+    )
+    if start_date is not None:
+        query = query.where(CompiledOrders.delivered_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date is not None:
+        query = query.where(CompiledOrders.delivered_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    buckets: dict[tuple, dict] = defaultdict(lambda: {
+        "period_start": None, "period_end": None, "label": "",
+        "total_price": 0.0, "total_items": 0, "order_ids": set(),
+    })
+
+    for order, co in rows:
+        if not co.delivered_at:
+            continue
+        delivered_day = co.delivered_at.date()
+        group_key = (order.kitchen.value if order.kitchen else "Unassigned") if group_by == "kitchen" \
+            else (co.vendor_category or "general_provisions")
+
+        if view == "daily":
+            key = delivered_day.isoformat()
+            label = delivered_day.strftime("%a, %d %b %Y")
+            period_start = period_end = delivered_day
+        elif view == "weekly":
+            monday, sunday, key, label = _week_bounds(delivered_day)
+            period_start, period_end = monday, sunday
+        else:
+            first, last, key, label = _month_bounds(delivered_day)
+            period_start, period_end = first, last
+
+        bucket_key = (key, group_key)
+        b = buckets[bucket_key]
+        b["period_start"] = period_start
+        b["period_end"] = period_end
+        b["label"] = label
+        b["bucket_key"] = key
+        b["group_key"] = group_key
+        line_total = float(order.total_price) if order.total_price else 0.0
+        b["total_price"] += line_total
+        qty = order.delivered_quantity if order.delivered_quantity is not None else order.total_quantity
+        b["total_items"] += int(qty or 0)
+        b["order_ids"].add(co.id)
+
+    out_buckets = sorted(
+        buckets.values(),
+        key=lambda b: (b["period_start"], b["group_key"]),
+        reverse=True,
+    )
+
+    return TrackingSummaryResponse(
+        view=view,
+        group_by=group_by,
+        buckets=[
+            TrackingBucket(
+                bucket_key=b["bucket_key"],
+                bucket_label=b["label"],
+                period_start=b["period_start"],
+                period_end=b["period_end"],
+                group_key=b["group_key"],
+                total_price=round(b["total_price"], 2),
+                total_items=b["total_items"],
+                total_orders=len(b["order_ids"]),
             )
             for b in out_buckets
         ],

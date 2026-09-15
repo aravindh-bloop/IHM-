@@ -11,5 +11,5 @@ class Stall(Base):
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     stall_name: str = Column(String, nullable=False)
     kitchen: Kitchen = Column(AlchemyEnum(Kitchen), nullable=False)
-    operator_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
+    operator_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False, unique=True)
     operator = relationship("User", back_populates="stalls")

@@ -286,6 +286,11 @@ const DashboardStyles = () => (
       color: var(--danger-700);
     }
 
+    .status-vendor_confirmed {
+      background: var(--primary-100);
+      color: var(--primary-700);
+    }
+
     .form-group {
       display: flex;
       flex-direction: column;
@@ -456,6 +461,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
   const catLabel = CATEGORY_LABELS[user?.vendor_category] || 'Vendor';
   const links = [
     { id: 'incoming', label: 'Incoming Orders', icon: Package },
+    { id: 'awaiting', label: 'Awaiting Confirmation', icon: Eye },
     { id: 'history', label: 'Supply History', icon: History }
   ];
 
@@ -550,7 +556,7 @@ const IncomingOrdersPage = () => {
     }, 0);
   };
 
-  const handleGenerateBill = async (orderId) => {
+  const handleFreezeOrder = async (orderId) => {
     const order = orders.find(o => o.order_id === orderId);
 
     // Validate: every item must have a unit price set
@@ -559,13 +565,13 @@ const IncomingOrdersPage = () => {
       return price == null || isNaN(price);
     });
     if (missingPrice) {
-      toast.error(`Set a unit price for "${missingPrice.item_name}" before generating the bill.`);
+      toast.error(`Set a unit price for "${missingPrice.item_name}" before freezing this order.`);
       return;
     }
 
     const total = computeOrderTotal(order);
     const ok = window.confirm(
-      `Generate bill of ₹${total.toFixed(2)} for this order? This action is final and cannot be undone.`
+      `Freeze this order (₹${total.toFixed(2)}) and send it to admin? You won't be able to edit it after this — admin will confirm receipt and generate the bill.`
     );
     if (!ok) return;
 
@@ -576,15 +582,15 @@ const IncomingOrdersPage = () => {
         unit_price: feedback[orderId]?.[item.item_id]?.unitPrice
       }));
 
-      const res = await vendorAPI.updateOrderStatus(orderId, {
+      await vendorAPI.updateOrderStatus(orderId, {
         items: items,
         mark_as_completed: true,
       });
 
-      toast.success(`Bill ${res.invoice_number} generated — ₹${(res.total_price || total).toFixed(2)}`);
+      toast.success('Order frozen and sent to admin for confirmation.');
       fetchIncomingOrders();
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || err.message || 'Failed to generate bill';
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to freeze order';
       toast.error(errorMsg);
     }
   };
@@ -707,10 +713,10 @@ const IncomingOrdersPage = () => {
                       </button>
                       <button
                         className="btn btn-success"
-                        onClick={() => handleGenerateBill(order.order_id)}
+                        onClick={() => handleFreezeOrder(order.order_id)}
                       >
                         <Send size={18} />
-                        Generate Bill
+                        Freeze &amp; Send to Admin
                       </button>
                     </div>
                   </div>
@@ -721,6 +727,96 @@ const IncomingOrdersPage = () => {
         ) : (
           <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
             No incoming orders at this time.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AwaitingConfirmationPage = () => {
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [expandedOrder, setExpandedOrder] = React.useState(null);
+
+  React.useEffect(() => {
+    fetchAwaiting();
+  }, []);
+
+  const fetchAwaiting = async () => {
+    try {
+      setLoading(true);
+      const response = await vendorAPI.getAwaitingConfirmation();
+      setOrders(Array.isArray(response) ? response : []);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to fetch orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Awaiting Confirmation</h1>
+        <p className="page-description">
+          Orders you've frozen and sent to admin. These are read-only until admin confirms receipt and generates the bill.
+        </p>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading...
+          </div>
+        ) : orders.length > 0 ? (
+          <div className="page-section">
+            {orders.map((order) => (
+              <div key={order.order_id} style={{ paddingBottom: 'var(--spacing-2xl)', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                  <h3 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>
+                    Order #{order.order_id.substring(0, 8).toUpperCase()}
+                  </h3>
+                  <span className="status-badge status-vendor_confirmed">Awaiting admin confirmation</span>
+                </div>
+                <button
+                  className="btn btn-small"
+                  onClick={() => setExpandedOrder(expandedOrder === order.order_id ? null : order.order_id)}
+                  style={{ padding: '0.3rem 0.75rem', marginBottom: 'var(--spacing-md)' }}
+                >
+                  <Eye size={16} />
+                  {expandedOrder === order.order_id ? 'Hide items' : 'View items'}
+                </button>
+                {expandedOrder === order.order_id && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '0.5rem' }}>Item</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Ordered</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Delivered</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Unit Price</th>
+                        <th style={{ textAlign: 'right', padding: '0.5rem' }}>Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(order.items || []).map((item, idx) => (
+                        <tr key={idx}>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>{item.item_name}</td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.total_quantity} {item.unit}</td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.delivered_quantity ?? '—'} {item.unit}</td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{item.unit_price != null ? `₹${item.unit_price.toFixed(2)}` : '—'}</td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{item.total_price != null ? `₹${item.total_price.toFixed(2)}` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: 'var(--spacing-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No orders awaiting admin confirmation.
           </div>
         )}
       </div>
@@ -897,6 +993,8 @@ export default function VendorDashboard() {
     switch (activePage) {
       case 'incoming':
         return <IncomingOrdersPage />;
+      case 'awaiting':
+        return <AwaitingConfirmationPage />;
       case 'history':
         return <SupplyHistoryPage />;
       default:

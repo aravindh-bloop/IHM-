@@ -33,57 +33,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ==================== CHEF APIs ====================
-export const chefAPI = {
-  // Create new order
-  createOrder: async (orderData) => {
-    const response = await apiClient.post('/chef/orders', orderData);
-    return response.data;
-  },
-
-  // Get all orders for the chef's kitchen
-  getOrders: async (params = {}) => {
-    const response = await apiClient.get('/chef/orders', { params });
-    return response.data;
-  },
-
-  // Get order by ID
-  getOrderById: async (orderId) => {
-    const response = await apiClient.get(`/chef/orders/${orderId}`);
-    return response.data;
-  },
-
-  // Get order history with filters
-  getOrderHistory: async (filters = {}) => {
-    const response = await apiClient.get('/chef/orders/history', {
-      params: filters,
-    });
-    return response.data;
-  },
-
-  // Get monthly expenses
-  getMonthlyExpenses: async (month, year) => {
-    const response = await apiClient.get('/chef/expenses/monthly', {
-      params: { month, year },
-    });
-    return response.data;
-  },
-
-  // Get expense summary
-  getExpenseSummary: async (startDate, endDate) => {
-    const response = await apiClient.get('/chef/expenses/summary', {
-      params: { start_date: startDate, end_date: endDate },
-    });
-    return response.data;
-  },
-
-  // Delete draft order (if needed)
-  deleteOrder: async (orderId) => {
-    const response = await apiClient.delete(`/chef/orders/${orderId}`);
-    return response.data;
-  },
-};
-
 // ==================== ADMIN APIs ====================
 export const adminAPI = {
   // Inventory
@@ -143,6 +92,33 @@ export const adminAPI = {
     return response.data;
   },
 
+  // Low stock
+  getLowStockInventory: async () => {
+    const response = await apiClient.get('/admin/inventory/low-stock');
+    return response.data;
+  },
+
+  // Goods receipt (admin confirms vendor-frozen orders)
+  getOrdersAwaitingReceipt: async () => {
+    const response = await apiClient.get('/admin/orders/awaiting-receipt');
+    return response.data;
+  },
+
+  confirmReceipt: async (compiledOrderId, items = null) => {
+    const body = items ? { items } : {};
+    const response = await apiClient.post(`/admin/orders/${compiledOrderId}/confirm-receipt`, body);
+    return response.data;
+  },
+
+  // Kitchen-wise / category-wise tracking
+  getTrackingSummary: async ({ view = 'weekly', group_by = 'kitchen', start_date, end_date } = {}) => {
+    const params = { view, group_by };
+    if (start_date) params.start_date = start_date;
+    if (end_date) params.end_date = end_date;
+    const response = await apiClient.get('/admin/tracking/summary', { params });
+    return response.data;
+  },
+
   // Legacy compat
   updateRequestStatus: async (requestId, statusData) => {
     const response = await apiClient.patch(`/admin/orders/request/${requestId}`, statusData);
@@ -176,6 +152,12 @@ export const vendorAPI = {
   // Get supply history (completed/cancelled orders)
   getSupplyHistory: async () => {
     const response = await apiClient.get('/vendor/orders/history');
+    return response.data;
+  },
+
+  // Orders frozen by this vendor, awaiting admin confirmation (read-only)
+  getAwaitingConfirmation: async () => {
+    const response = await apiClient.get('/vendor/orders/awaiting-confirmation');
     return response.data;
   },
 };
@@ -247,27 +229,6 @@ export const hodAPI = {
 
   getStalls: async () => {
     const response = await apiClient.get('/hod/stalls');
-    return response.data;
-  },
-};
-
-// ==================== COMMON APIs ====================
-export const commonAPI = {
-  // Get all kitchens
-  getKitchens: async () => {
-    const response = await apiClient.get('/common/kitchens');
-    return response.data;
-  },
-
-  // Get order statuses
-  getOrderStatuses: async () => {
-    const response = await apiClient.get('/common/statuses');
-    return response.data;
-  },
-
-  // Get items master list (if you have predefined items)
-  getItems: async () => {
-    const response = await apiClient.get('/common/items');
     return response.data;
   },
 };

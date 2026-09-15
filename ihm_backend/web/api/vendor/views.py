@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update
 from typing import List, Optional
 from ihm_backend.db.dependencies import get_db_session
 from ihm_backend.db.models.users import User, UserRole
@@ -22,27 +22,6 @@ from ihm_backend.services.email import send_invoice_email, send_order_notificati
 from ihm_backend.settings import settings
 
 router = APIRouter()
-
-
-CATEGORY_PREFIX = {
-    "seafood": "SEA",
-    "vegetables_fruits": "VEG",
-    "general_provisions": "GEN",
-}
-
-
-async def _generate_invoice_number(db: AsyncSession, category: str | None) -> str:
-    """INV-YYYYMMDD-CAT-NNN, where NNN is the count of today's invoices for that category + 1."""
-    prefix = CATEGORY_PREFIX.get(category or "", "GEN")
-    today = datetime.utcnow().strftime("%Y%m%d")
-    base = f"INV-{today}-{prefix}-"
-    result = await db.execute(
-        select(func.count()).select_from(CompiledOrders).where(
-            CompiledOrders.invoice_number.like(f"{base}%")
-        )
-    )
-    count = result.scalar() or 0
-    return f"{base}{count + 1:03d}"
 
 
 @router.get("/orders/incoming", response_model=List[CompiledOrderForVendor])
@@ -99,6 +78,52 @@ async def get_incoming_orders(
     return response
 
 
+@router.get("/orders/awaiting-confirmation", response_model=List[CompiledOrderForVendor])
+async def get_awaiting_confirmation(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_role(UserRole.VENDOR))
+):
+    """Orders this vendor has frozen but admin hasn't confirmed receipt of yet (read-only)."""
+    result = await db.execute(
+        select(CompiledOrders)
+        .where(
+            CompiledOrders.vendor_id == current_user.id,
+            CompiledOrders.status == "vendor_confirmed"
+        )
+        .order_by(CompiledOrders.created_at.desc())
+    )
+    compiled_orders = result.scalars().all()
+
+    response = []
+    for compiled_order in compiled_orders:
+        orders_result = await db.execute(
+            select(Orders).where(Orders.compiled_order_id == compiled_order.id)
+        )
+        orders = orders_result.scalars().all()
+        response.append(
+            CompiledOrderForVendor(
+                order_id=str(compiled_order.id),
+                date=compiled_order.created_at.isoformat(),
+                required_date=compiled_order.required_date.isoformat() if compiled_order.required_date else None,
+                status=compiled_order.status,
+                total_items=compiled_order.total_items,
+                total_price=float(compiled_order.total_price) if compiled_order.total_price else None,
+                invoice_number=compiled_order.invoice_number,
+                delivered_at=compiled_order.delivered_at.isoformat() if compiled_order.delivered_at else None,
+                items=[
+                    OrderItemForVendor(
+                        item_id=str(o.id), item_name=o.item_name,
+                        total_quantity=o.total_quantity, delivered_quantity=o.delivered_quantity,
+                        unit=o.unit,
+                        unit_price=float(o.unit_price) if o.unit_price else None,
+                        total_price=float(o.total_price) if o.total_price else None
+                    ) for o in orders
+                ]
+            )
+        )
+    return response
+
+
 @router.post("/orders/{order_id}/update-status")
 async def update_order_status(
     order_id: uuid.UUID,
@@ -121,8 +146,11 @@ async def update_order_status(
     if not compiled_order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
 
-    if compiled_order.status == "delivered":
-        raise HTTPException(status_code=400, detail="This order has already been billed and cannot be modified")
+    if compiled_order.status in ("delivered", "vendor_confirmed"):
+        raise HTTPException(
+            status_code=400,
+            detail="This order has already been frozen and sent to admin and cannot be modified",
+        )
 
     # Update individual order items and collect item details for email
     total_price_sum = 0.0
@@ -146,11 +174,11 @@ async def update_order_status(
         if item_update.delivered_quantity < 0:
             raise HTTPException(status_code=400, detail="Delivered quantity cannot be negative")
 
-        # When generating the final bill, unit price is required
+        # To freeze and send to admin, unit price is required
         if update_data.mark_as_completed and item_update.unit_price is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unit price required for '{order_item.item_name}' to generate the bill"
+                detail=f"Unit price required for '{order_item.item_name}' before freezing this order"
             )
 
         line_total = None
@@ -179,42 +207,33 @@ async def update_order_status(
 
     compiled_order.total_price = total_price_sum if total_price_sum > 0 else compiled_order.total_price
 
-    invoice_number = None
     if update_data.mark_as_completed:
-        invoice_number = await _generate_invoice_number(db, compiled_order.vendor_category)
-        compiled_order.status = "delivered"
-        compiled_order.invoice_number = invoice_number
-        compiled_order.delivered_at = datetime.utcnow()
+        # Vendor freezes their supply — awaiting admin to confirm receipt and bill it.
+        compiled_order.status = "vendor_confirmed"
 
-        # Email admins the invoice
-        order_data = {
-            'order_id': str(order_id),
-            'invoice_number': invoice_number,
-            'order_date': compiled_order.created_at.strftime('%Y-%m-%d'),
-            'delivered_at': compiled_order.delivered_at.strftime('%Y-%m-%d %H:%M'),
-            'required_date': compiled_order.required_date.isoformat() if compiled_order.required_date else None,
-            'status': 'delivered',
-            'total_items': len(order_items),
-            'total_price': total_price_sum,
-            'items': order_items,
-            'vendor_name': current_user.email
-        }
+        # Notify admins that an order is ready for their review
         try:
             admin_result = await db.execute(select(User).where(User.role == UserRole.ADMIN))
             admin_emails = [a.email for a in admin_result.scalars() if a.email] or [settings.admin_email]
             if admin_emails:
-                background_tasks.add_task(send_invoice_email, admin_emails, order_data)
+                background_tasks.add_task(
+                    send_order_notification_email,
+                    admin_emails,
+                    str(order_id),
+                    current_user.email,
+                    len(order_items),
+                    "frozen — awaiting your confirmation",
+                )
         except Exception:
-            pass  # email failure must not break the bill generation response
+            pass  # email failure must not break the freeze response
 
     await db.commit()
 
     return {
-        "message": "Bill generated successfully" if update_data.mark_as_completed else "Order draft saved",
+        "message": "Order frozen and sent to admin for confirmation" if update_data.mark_as_completed else "Order draft saved",
         "order_id": str(order_id),
-        "invoice_number": invoice_number,
         "total_price": total_price_sum,
-        "delivered": update_data.mark_as_completed,
+        "vendor_confirmed": update_data.mark_as_completed,
     }
 
 

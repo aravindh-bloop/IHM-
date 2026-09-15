@@ -1,7 +1,8 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, Integer, Numeric
+from sqlalchemy import Column, String, ForeignKey, Integer, Numeric, Enum as AlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
 from ihm_backend.db.base import Base
+from ihm_backend.db.models.users import Kitchen
 from sqlalchemy.orm import relationship
 
 
@@ -11,6 +12,12 @@ class Orders(Base):
     compiled_order_id: uuid.UUID = Column(UUID(as_uuid=True),
                                           ForeignKey("compiled_orders.id"),
                                           nullable=False)
+    # Traceability back to the requesting stall/kitchen, set at compile time.
+    stall_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("stall.id"), nullable=True)
+    kitchen: Kitchen | None = Column(AlchemyEnum(Kitchen), nullable=True)
+    raw_material_request_id: uuid.UUID | None = Column(
+        UUID(as_uuid=True), ForeignKey("raw_material_requests.id"), nullable=True
+    )
     item_name: str = Column(String, nullable=False)
     total_quantity: int = Column(Integer, nullable=False)
     delivered_quantity: int = Column(Integer, nullable=True)

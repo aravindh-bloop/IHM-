@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
   Eye, Plus, Clock, LogOut, Moon, Sun, Package,
-  ChevronDown, ChevronRight, Trash2, Edit2, Check, X, Receipt
+  ChevronDown, ChevronRight, Trash2, Edit2, Check, X, Receipt, TrendingUp
 } from 'lucide-react';
 import { adminAPI, authAPI } from '../services/api';
 import toast from 'react-hot-toast';
@@ -140,6 +140,7 @@ const DashboardStyles = () => (
     .status-hod_submitted { background: var(--primary-50); color: var(--primary-700); }
     .status-admin_compiled { background: var(--success-50); color: var(--success-700); }
     .status-admin_rejected { background: var(--danger-50); color: var(--danger-700); }
+    .status-vendor_confirmed { background: var(--primary-100); color: var(--primary-700); }
     .inline-edit { padding: 4px 8px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); font-size: var(--text-sm); width: 100%; }
     .inline-edit:focus { outline: none; border-color: var(--primary-500); }
     .cat-chip {
@@ -166,8 +167,10 @@ const Sidebar = ({ activePage, setActivePage }) => {
   const links = [
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'orders', label: 'Pending Orders', icon: Eye },
+    { id: 'receipt', label: 'Goods Receipt', icon: Check },
     { id: 'history', label: 'Vendor Orders', icon: Clock },
     { id: 'bills', label: 'Bills', icon: Receipt },
+    { id: 'tracking', label: 'Tracking', icon: TrendingUp },
     { id: 'create-account', label: 'Create Account', icon: Plus },
   ];
   return (
@@ -391,6 +394,24 @@ const InventoryPage = () => {
         </form>
       </div>
 
+      {items.some(i => i.is_low_stock) && (
+        <div className="card" style={{ background: 'var(--danger-50)', border: '1px solid var(--danger-200)' }}>
+          <h2 className="section-title" style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--danger-700)' }}>
+            ⚠ Low Stock ({items.filter(i => i.is_low_stock).length} items)
+          </h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {items.filter(i => i.is_low_stock).map(i => (
+              <span key={i.id} style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 'var(--text-xs)', fontWeight: 600,
+                background: 'var(--danger-100)', color: 'var(--danger-700)'
+              }}>
+                {i.item_name}: {i.quantity} {i.unit} (below {i.low_stock_threshold})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <h2 className="section-title" style={{ marginBottom: 'var(--spacing-lg)' }}>Current Stock ({items.length} items)</h2>
         {loading ? <div className="empty-state">Loading…</div> : items.length === 0 ? (
@@ -428,7 +449,9 @@ const InventoryPage = () => {
                     ) : (
                       <>
                         <td style={{ fontWeight: 500 }}>{item.item_name}</td>
-                        <td>{item.quantity}</td>
+                        <td style={item.is_low_stock ? { color: 'var(--danger-700)', fontWeight: 700 } : undefined}>
+                          {item.quantity}{item.is_low_stock ? ' ⚠' : ''}
+                        </td>
                         <td>{item.unit}</td>
                         <td><span className={`cat-chip cat-${item.vendor_category}`}>{catLabel(item.vendor_category)}</span></td>
                         <td style={{ display: 'flex', gap: 6 }}>
@@ -744,6 +767,7 @@ const HistoryPage = () => {
   const STATUS_TABS = [
     { id: 'all', label: 'All' },
     { id: 'pending', label: 'Pending' },
+    { id: 'vendor_confirmed', label: 'Frozen by Vendor' },
     { id: 'delivered', label: 'Delivered' },
     { id: 'cancelled', label: 'Cancelled' },
   ];
@@ -892,6 +916,213 @@ const HistoryPage = () => {
           );
         })
       )}
+    </div>
+  );
+};
+
+// ── GOODS RECEIPT TAB ─────────────────────────────────────────────────────────
+
+const GoodsReceiptPage = () => {
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [expanded, setExpanded] = React.useState({});
+  const [confirming, setConfirming] = React.useState(null);
+
+  React.useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const data = await adminAPI.getOrdersAwaitingReceipt();
+      setOrders(data);
+    } catch (e) {
+      toast.error('Failed to load orders awaiting receipt');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }));
+
+  const handleConfirm = async (order) => {
+    const total = order.items.reduce((sum, it) => {
+      const qty = it.delivered_quantity ?? it.total_quantity;
+      const price = it.unit_price ?? 0;
+      return sum + qty * price;
+    }, 0);
+    if (!window.confirm(
+      `Confirm receipt of this order (₹${total.toFixed(2)})? This generates the invoice and restocks inventory.`
+    )) return;
+
+    try {
+      setConfirming(order.id);
+      const res = await adminAPI.confirmReceipt(order.id);
+      toast.success(`Receipt confirmed — invoice ${res.invoice_number}, ₹${res.total_price.toFixed(2)}`);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to confirm receipt');
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Goods Receipt</h1>
+        <p className="page-description">
+          Orders the vendor has frozen and sent over. Confirm what actually arrived to generate the bill and restock inventory.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="empty-state">Loading…</div></div>
+      ) : orders.length === 0 ? (
+        <div className="card"><div className="empty-state">Nothing awaiting confirmation right now.</div></div>
+      ) : (
+        orders.map(order => (
+          <div key={order.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className={`cat-chip cat-${order.vendor_category}`}>{catLabel(order.vendor_category)}</span>
+                  <span style={{ fontWeight: 600 }}>{order.vendor_email || 'Unknown vendor'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    #{order.id.substring(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                {order.required_date && (
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Was due {new Date(order.required_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => toggle(order.id)} style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}>
+                  {expanded[order.id] ? 'Hide items' : 'View items'}
+                </button>
+                <button
+                  className="btn btn-success"
+                  onClick={() => handleConfirm(order)}
+                  disabled={confirming === order.id}
+                  style={{ padding: '6px 14px', fontSize: 'var(--text-sm)' }}
+                >
+                  {confirming === order.id ? 'Confirming…' : 'Confirm Receipt & Generate Bill'}
+                </button>
+              </div>
+            </div>
+
+            {expanded[order.id] && (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Ordered</th>
+                    <th>Delivered</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.items.map(item => (
+                    <tr key={item.order_id}>
+                      <td>{item.item_name}</td>
+                      <td>{item.total_quantity} {item.unit || ''}</td>
+                      <td>{item.delivered_quantity != null ? `${item.delivered_quantity} ${item.unit || ''}` : '—'}</td>
+                      <td>{item.unit_price != null ? `₹${item.unit_price.toFixed(2)}` : '—'}</td>
+                      <td style={{ fontWeight: 600 }}>{item.total_price != null ? `₹${item.total_price.toFixed(2)}` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+// ── TRACKING TAB (kitchen-wise / category-wise) ──────────────────────────────
+
+const TrackingPage = () => {
+  const [view, setView] = React.useState('weekly');
+  const [groupBy, setGroupBy] = React.useState('kitchen');
+  const [buckets, setBuckets] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => { load(); }, [view, groupBy]);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const data = await adminAPI.getTrackingSummary({ view, group_by: groupBy });
+      setBuckets(data.buckets || []);
+    } catch (e) {
+      toast.error('Failed to load tracking summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-section">
+      <div>
+        <h1 className="page-title">Tracking</h1>
+        <p className="page-description">Spend and volume on delivered (billed) orders, grouped by kitchen or category.</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--spacing-lg)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['daily', 'weekly', 'monthly'].map(v => (
+            <button key={v} onClick={() => setView(v)} className={view === v ? 'btn' : 'btn btn-ghost'} style={{ padding: '6px 14px', fontSize: 'var(--text-sm)', textTransform: 'capitalize' }}>
+              {v}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['kitchen', 'category'].map(g => (
+            <button key={g} onClick={() => setGroupBy(g)} className={groupBy === g ? 'btn' : 'btn btn-ghost'} style={{ padding: '6px 14px', fontSize: 'var(--text-sm)', textTransform: 'capitalize' }}>
+              By {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        {loading ? <div className="empty-state">Loading…</div> : buckets.length === 0 ? (
+          <div className="empty-state">No delivered orders in this range yet.</div>
+        ) : (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>{groupBy === 'kitchen' ? 'Kitchen' : 'Category'}</th>
+                  <th>Orders</th>
+                  <th>Items</th>
+                  <th>Total Spend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buckets.map((b, idx) => (
+                  <tr key={idx}>
+                    <td>{b.bucket_label}</td>
+                    <td>
+                      {groupBy === 'category'
+                        ? <span className={`cat-chip cat-${b.group_key}`}>{catLabel(b.group_key)}</span>
+                        : b.group_key}
+                    </td>
+                    <td>{b.total_orders}</td>
+                    <td>{b.total_items}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--success-700)' }}>₹{b.total_price.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1364,8 +1595,10 @@ export default function AdminDashboard() {
     switch (activePage) {
       case 'inventory': return <InventoryPage />;
       case 'orders': return <OrdersPage />;
+      case 'receipt': return <GoodsReceiptPage />;
       case 'history': return <HistoryPage />;
       case 'bills': return <BillsPage />;
+      case 'tracking': return <TrackingPage />;
       case 'create-account': return <CreateAccountPage />;
       default: return <OrdersPage />;
     }
