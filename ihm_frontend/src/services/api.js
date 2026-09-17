@@ -62,8 +62,12 @@ export const adminAPI = {
     return response.data;
   },
 
-  compileOrders: async (requiredDate = null) => {
-    const body = requiredDate ? { required_date: requiredDate } : {};
+  compileOrders: async (requiredDate = null, unscheduledOnly = false) => {
+    const body = unscheduledOnly
+      ? { required_date: null, unscheduled_only: true }
+      : requiredDate
+        ? { required_date: requiredDate }
+        : {};
     const response = await apiClient.post('/admin/orders/compile', body);
     return response.data;
   },

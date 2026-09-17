@@ -28,10 +28,11 @@ def get_app() -> FastAPI:
     )
 
     # Add CORS middleware FIRST (must be added before routes)
-    # Allow all origins by default
+    # Use the configured list so Vercel and other frontend origins are allowed
+    # without falling back to the unsafe wildcard-only setup.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

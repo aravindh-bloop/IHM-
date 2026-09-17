@@ -1,43 +1,40 @@
 # IHM Full Stack Application
 
-This repository contains both the backend (FastAPI) and frontend (React + Vite) services configured to work together with Docker Compose.
+This repository contains both the backend (FastAPI) and frontend (React + Vite) services designed to run directly on your machine.
 
 ## Architecture
 
 - **Backend**: FastAPI with PostgreSQL database, Redis cache, and background tasks
-- **Frontend**: React with Vite for development and Nginx for production
+- **Frontend**: React with Vite for development
 - **Services**: Database migrations, task workers, and health monitoring
 
 ## Quick Start
 
-### Development Mode
+### Local development
 
-1. **Clone and setup**:
+1. **Install dependencies**:
    ```bash
-   git clone <repository-url>
-   cd ihm_backend
+   poetry install
+   cd ihm_frontend
+   npm install
    ```
 
-2. **Run the full stack in development mode**:
+2. **Start the backend** in one terminal:
    ```bash
-   docker-compose -f docker-compose.yml -f deploy/docker-compose.dev.yml up --build
+   cd ..
+   poetry run python -m ihm_backend
    ```
 
-3. **Access the application**:
-   - Frontend: http://localhost:5173 (React dev server with hot reload)
-   - Backend API: http://localhost:8000 (FastAPI with auto-reload)
-   - API Documentation: http://localhost:8000/docs
-
-### Production Mode
-
-1. **Run the full stack in production mode**:
+3. **Start the frontend** in another terminal:
    ```bash
-   docker-compose up --build
+   cd ihm_frontend
+   npm run dev
    ```
 
-2. **Access the application**:
-   - Frontend: http://localhost:3000 (Nginx-served React build)
-   - Backend API: http://localhost:8000 (FastAPI production)
+4. **Access the application**:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/api/docs
 
 ## Services Overview
 
@@ -100,46 +97,30 @@ const response = await ApiService.healthCheck()
 const echo = await ApiService.echo("Hello Backend!")
 ```
 
-## Docker Commands
+## Local Commands
 
-### Development
+### Backend
 ```bash
-# Start all services with hot reload
-docker-compose -f docker-compose.yml -f deploy/docker-compose.dev.yml up
-
-# Rebuild and start
-docker-compose -f docker-compose.yml -f deploy/docker-compose.dev.yml up --build
-
-# Run specific service
-docker-compose -f docker-compose.yml -f deploy/docker-compose.dev.yml up frontend
+poetry run python -m ihm_backend
 ```
 
-### Production
+### Frontend
 ```bash
-# Start all services
-docker-compose up
-
-# Rebuild and start
-docker-compose up --build
-
-# Run in background
-docker-compose up -d
+cd ihm_frontend
+npm run dev
 ```
 
 ### Useful Commands
 ```bash
-# View logs
-docker-compose logs -f [service-name]
+# Install Python dependencies
+poetry install
 
-# Stop all services
-docker-compose down
+# Install frontend dependencies
+cd ihm_frontend
+npm install
 
-# Remove volumes (reset database)
-docker-compose down -v
-
-# Shell access to containers
-docker-compose exec api bash
-docker-compose exec frontend sh
+# Run tests
+pytest -vv .
 ```
 
 ## Project Structure
@@ -153,12 +134,10 @@ ihm_backend/
 ├── ihm_frontend/         # Frontend React application
 │   ├── src/              # React source code
 │   ├── public/           # Static assets
-│   ├── Dockerfile        # Frontend container configuration
-│   └── nginx.conf        # Production web server config
+│   └── vite.config.js    # Vite dev server config
 ├── tests/                # Backend tests
-├── deploy/               # Docker Compose overrides
-├── docker-compose.yml    # Main service definitions
-└── README.md            # This file
+├── README.md             # Project overview
+└── FULLSTACK_README.md   # This file
 ```
 
 ## Next Steps
@@ -175,20 +154,20 @@ ihm_backend/
 ### Common Issues
 
 1. **Frontend can't connect to backend**:
-   - Check that both services are running
-   - Verify API URL in frontend environment variables
-   - Check Docker network connectivity
+   - Check that both the backend and frontend processes are running
+   - Verify the API URL in the frontend environment variables
+   - Ensure the backend is listening on port 8000
 
 2. **Database connection errors**:
-   - Ensure PostgreSQL service is healthy
-   - Check database credentials in environment variables
-   - Wait for database initialization (first run takes longer)
+   - Ensure PostgreSQL is running locally
+   - Check database credentials in the `.env` file
+   - Confirm the database server is reachable at localhost:5432 or your configured port
 
 3. **Hot reload not working**:
-   - Ensure volume mounts are configured correctly in development mode
+   - Restart the Vite dev server
    - Check file permissions if on Windows/WSL
 
 4. **Port conflicts**:
-   - Change port mappings in docker-compose files if needed
-   - Use `docker-compose ps` to see current port assignments
+   - Change the ports in the `.env` and Vite config if needed
+   - Confirm with `netstat` or a process monitor that ports 5173 and 8000 are free
 ```

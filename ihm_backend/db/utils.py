@@ -7,7 +7,7 @@ from ihm_backend.settings import settings
 
 async def create_database() -> None:
     """Create a database."""
-    db_url = make_url(str(settings.db_url_string))
+    db_url = make_url(str(settings.db_admin_url))
     engine = create_async_engine(
         db_url,
         isolation_level="AUTOCOMMIT",
@@ -37,7 +37,7 @@ async def create_database() -> None:
 
 async def drop_database() -> None:
     """Drop current database."""
-    db_url = make_url(str(settings.db_url.with_path("/postgres")))
+    db_url = make_url(str(settings.db_admin_url))
     engine = create_async_engine(
         db_url,
         isolation_level="AUTOCOMMIT",

@@ -141,14 +141,43 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Toaster position="top-right" toastOptions={{
-          className: '',
-          style: {
-            background: 'var(--bg-primary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-default)',
-          },
-        }} />
+        <Toaster
+          position="top-center"
+          reverseOrder={false}
+          gutter={14}
+          toastOptions={{
+            duration: 2600,
+            className: '',
+            style: {
+              background: 'rgba(15, 23, 42, 0.96)',
+              color: '#f8fafc',
+              border: '1px solid rgba(148, 163, 184, 0.35)',
+              borderRadius: '16px',
+              padding: '12px 16px',
+              minWidth: '280px',
+              maxWidth: '420px',
+              boxShadow: '0 18px 42px rgba(15, 23, 42, 0.22)',
+            },
+            success: {
+              style: {
+                background: 'linear-gradient(135deg, rgba(20, 83, 45, 0.98), rgba(21, 128, 61, 0.92))',
+                border: '1px solid rgba(134, 239, 172, 0.45)',
+                color: '#f0fdf4',
+                borderRadius: '16px',
+                boxShadow: '0 18px 42px rgba(34, 197, 94, 0.22)',
+              },
+            },
+            error: {
+              style: {
+                background: 'linear-gradient(135deg, rgba(127, 29, 29, 0.98), rgba(153, 27, 27, 0.92))',
+                border: '1px solid rgba(252, 165, 165, 0.45)',
+                color: '#fef2f2',
+                borderRadius: '16px',
+                boxShadow: '0 18px 42px rgba(239, 68, 68, 0.2)',
+              },
+            },
+          }}
+        />
         <AppContent />
       </AuthProvider>
     </ThemeProvider>

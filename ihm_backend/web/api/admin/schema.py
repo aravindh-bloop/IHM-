@@ -61,6 +61,7 @@ class InventoryUpsertRequest(BaseModel):
 
 class CompileRequest(BaseModel):
     required_date: Optional[date] = None  # if set, only compile items for this date
+    unscheduled_only: bool = False  # when true, only compile items without a date
 
 
 class CompileOrderResponse(BaseModel):

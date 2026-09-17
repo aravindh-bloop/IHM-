@@ -20,28 +20,27 @@ You can find swagger documentation at `/api/docs`.
 
 You can read more about poetry here: https://python-poetry.org/
 
-## Docker
+## Local development
 
-You can start the project with docker using this command:
-
-```bash
-docker-compose up --build
-```
-
-If you want to develop in docker with autoreload and exposed ports add `-f deploy/docker-compose.dev.yml` to your docker command.
-Like this:
+Run the backend and frontend directly on your machine:
 
 ```bash
-docker-compose -f docker-compose.yml -f deploy/docker-compose.dev.yml --project-directory . up --build
+poetry install
+poetry run python -m ihm_backend
 ```
 
-This command exposes the web application on port 8000, mounts current directory and enables autoreload.
-
-But you have to rebuild image every time you modify `poetry.lock` or `pyproject.toml` with this command:
+Then in a separate terminal:
 
 ```bash
-docker-compose build
+cd ihm_frontend
+npm install
+npm run dev
 ```
+
+The app will run at:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API docs: http://localhost:8000/api/docs
 
 ## Project structure
 
@@ -141,23 +140,16 @@ alembic revision
 
 ## Running tests
 
-If you want to run it in docker, simply run:
+For local development, start PostgreSQL and Redis on your machine, then run:
 
-```bash
-docker-compose run --build --rm api pytest -vv .
-docker-compose down
-```
-
-For running tests on your local machine.
-1. you need to start a database.
-
-I prefer doing it with docker:
-```
-docker run -p "5432:5432" -e "POSTGRES_PASSWORD=ihm_backend" -e "POSTGRES_USER=ihm_backend" -e "POSTGRES_DB=ihm_backend" postgres:16.3-bullseye
-```
-
-
-2. Run the pytest.
 ```bash
 pytest -vv .
 ```
+
+If you need a local database quickly, you can start PostgreSQL directly with:
+
+```bash
+redis-server
+```
+
+and a PostgreSQL instance on port 5432 with the usual local settings from your .env file.

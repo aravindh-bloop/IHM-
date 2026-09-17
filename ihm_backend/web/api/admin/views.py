@@ -206,6 +206,7 @@ async def compile_and_send_to_vendors(
     Items with net_required == 0 (fully covered by inventory) are skipped.
     """
     target_date = body.required_date if body else None
+    unscheduled_only = body.unscheduled_only if body else False
 
     query = (
         select(RawMaterialRequests, Stall)
@@ -214,6 +215,8 @@ async def compile_and_send_to_vendors(
     )
     if target_date is not None:
         query = query.where(RawMaterialRequests.required_date == target_date)
+    elif unscheduled_only:
+        query = query.where(RawMaterialRequests.required_date.is_(None))
 
     result = await db.execute(query)
     rows = result.all()

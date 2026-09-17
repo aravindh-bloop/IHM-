@@ -519,7 +519,7 @@ const OrdersPage = () => {
     try {
       setCompiling(true);
       const requiredDate = dateKey === 'unscheduled' ? null : dateKey;
-      const result = await adminAPI.compileOrders(requiredDate);
+      const result = await adminAPI.compileOrders(requiredDate, dateKey === 'unscheduled');
       toast.success(`Sent! ${result.compiled_orders?.length || 0} vendor order(s) created.`);
       load();
     } catch (e) {
@@ -541,7 +541,7 @@ const OrdersPage = () => {
       let totalVendorOrders = 0;
       for (const dateKey of dateKeys) {
         const requiredDate = dateKey === 'unscheduled' ? null : dateKey;
-        const result = await adminAPI.compileOrders(requiredDate);
+        const result = await adminAPI.compileOrders(requiredDate, dateKey === 'unscheduled');
         totalVendorOrders += result.compiled_orders?.length || 0;
       }
       toast.success(`Sequential compile done. ${totalVendorOrders} vendor order(s) created across ${dateKeys.length} day(s).`);

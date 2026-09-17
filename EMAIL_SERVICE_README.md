@@ -314,7 +314,7 @@ asyncio.run(send_order_notification_email(
 ## Production Deployment
 
 ### Environment Variables:
-Set these in your production environment (Docker, Heroku, etc.):
+Set these in your production environment (Heroku, etc.):
 
 ```bash
 IHM_BACKEND_MAIL_USERNAME=production-email@domain.com

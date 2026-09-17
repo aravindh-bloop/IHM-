@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChefHat, Shield, Truck, GraduationCap, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import loginBackground from '../assets/login-background.jpg';
 
 // Helper object for accessible, hidden labels
 const visuallyHiddenStyles = {
@@ -50,19 +51,19 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("https://st4.depositphotos.com/3664757/27559/i/450/depositphotos_275596086-stock-photo-ingredients-making-traditional-italian-pesto.jpg")',
+      backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url("${loginBackground}")`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundAttachment: 'fixed',
       overflowX: 'hidden',
-      overflowY: 'auto',
+      overflowY: 'hidden',
       position: 'relative',
       overscrollBehavior: 'none',
-      padding: 'var(--spacing-xl) 0'
+      padding: 'var(--spacing-md) 0'
     }}>
 
 
@@ -84,7 +85,7 @@ export default function LoginPage() {
         {/* Branding Panel */}
         <div style={{
           flex: 1,
-          padding: 'var(--spacing-2xl)',
+          padding: 'var(--spacing-xl)',
           color: 'var(--text-primary)',
           display: 'flex',
           flexDirection: 'column',
@@ -102,7 +103,7 @@ export default function LoginPage() {
             borderRadius: 'var(--radius-lg)',
             background: 'var(--bg-primary)',
             border: `1px solid var(--border-default)`,
-            marginBottom: 'var(--spacing-lg)',
+            marginBottom: 'var(--spacing-md)',
             backdropFilter: 'blur(8px)',
             boxShadow: `0 8px 32px rgba(var(--primary-600), 0.1)`
           }}>
@@ -131,7 +132,7 @@ export default function LoginPage() {
         {/* Form Panel */}
         <div style={{
           flex: 1,
-          padding: 'var(--spacing-2xl)',
+          padding: 'var(--spacing-xl)',
           background: 'transparent',
           display: 'flex',
           flexDirection: 'column',
@@ -142,7 +143,7 @@ export default function LoginPage() {
             color: 'var(--text-primary)',
             fontSize: 'var(--text-2xl)',
             fontWeight: 600,
-            marginBottom: 'var(--spacing-2xl)',
+            marginBottom: 'var(--spacing-lg)',
             letterSpacing: '-0.01em'
           }}>
             Sign In
@@ -152,8 +153,8 @@ export default function LoginPage() {
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 'var(--spacing-md)',
-            marginBottom: 'var(--spacing-xl)'
+            gap: 'var(--spacing-sm)',
+            marginBottom: 'var(--spacing-lg)'
           }}>
             {[
               { id: 'stall', label: 'Chef', icon: ChefHat },
@@ -167,7 +168,7 @@ export default function LoginPage() {
                 onClick={() => { setUserRole(id); if (id !== 'stall') setKitchen(''); setError(''); }}
                 style={{
                   borderRadius: 'var(--radius-lg)',
-                  padding: 'var(--spacing-lg)',
+                  padding: 'var(--spacing-md)',
                   border: userRole === id 
                     ? `2px solid var(--accent-500)` 
                     : `1px solid var(--border-light)`,
@@ -197,7 +198,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin}>
             {/* Kitchen Selection */}
             {userRole === 'stall' && (
-              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <div style={{ marginBottom: 'var(--spacing-md)' }}>
                 <label htmlFor="kitchen-select" style={visuallyHiddenStyles}>Select Kitchen</label>
                 <select
                   id="kitchen-select"
@@ -230,7 +231,7 @@ export default function LoginPage() {
 
             {/* Email */}
             {userRole && (
-              <div style={{ position: 'relative', marginBottom: 'var(--spacing-lg)' }}>
+              <div style={{ position: 'relative', marginBottom: 'var(--spacing-md)' }}>
                 <label htmlFor="email-input" style={visuallyHiddenStyles}>Email Address</label>
                 <Mail style={{ 
                   position: 'absolute', 
@@ -272,7 +273,7 @@ export default function LoginPage() {
 
             {/* Password */}
             {userRole && (
-              <div style={{ position: 'relative', marginBottom: 'var(--spacing-lg)' }}>
+              <div style={{ position: 'relative', marginBottom: 'var(--spacing-md)' }}>
                 <label htmlFor="password-input" style={visuallyHiddenStyles}>Password</label>
                 <Lock style={{ 
                   position: 'absolute', 
@@ -340,7 +341,7 @@ export default function LoginPage() {
                 borderRadius: 'var(--radius-md)',
                 color: '#fca5a5',
                 textAlign: 'center',
-                marginBottom: 'var(--spacing-lg)',
+                marginBottom: 'var(--spacing-md)',
                 fontSize: 'var(--text-sm)',
                 backdropFilter: 'blur(8px)'
               }}>

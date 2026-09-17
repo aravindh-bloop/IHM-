@@ -158,7 +158,10 @@ async def update_order_status(
 
     for item_update in update_data.items:
         order_item_result = await db.execute(
-            select(Orders).where(Orders.id == uuid.UUID(item_update.item_id))
+            select(Orders).where(
+                Orders.id == uuid.UUID(item_update.item_id),
+                Orders.compiled_order_id == compiled_order.id,
+            )
         )
         order_item = order_item_result.scalar_one_or_none()
         if not order_item:

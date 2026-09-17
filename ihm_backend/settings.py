@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     cors_origins: str = "*"  # Comma-separated list of allowed origins
 
     @property
+    def cors_origins_list(self) -> list[str]:
+        """Return allowed CORS origins trimmed for frontend deployment."""
+        if self.cors_origins.strip() == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
     def db_url(self) -> URL:
         """
         Assemble database URL from settings.
@@ -101,7 +108,7 @@ class Settings(BaseSettings):
                     f"Update IHM_BACKEND_DB_URL_STRING to use postgresql+asyncpg://"
                 )
             return url
-        
+
         return URL.build(
             scheme="postgresql+asyncpg",
             host=self.db_host,
@@ -110,6 +117,13 @@ class Settings(BaseSettings):
             password=self.db_pass,
             path=f"/{self.db_base}",
         )
+
+    @property
+    def db_admin_url(self) -> URL:
+        """Return a Postgres admin connection used for DB lifecycle operations."""
+        db_url = self.db_url
+        admin_path = "/postgres"
+        return db_url.with_path(admin_path)
 
     @property
     def redis_url(self) -> URL:
